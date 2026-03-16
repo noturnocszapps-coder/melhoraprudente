@@ -56,97 +56,6 @@ export default async function Home() {
   } catch (error: any) {
     console.error('Error fetching home data:', JSON.stringify(error, null, 2));
     fetchError = true;
-    
-    // Check for specific Supabase error: Table not found
-    if (error?.code === 'PGRST205') {
-      return (
-        <div className="min-h-[60vh] flex items-center justify-center px-4">
-          <div className="max-w-md w-full bg-amber-50 border border-amber-200 rounded-3xl p-8 text-center space-y-6">
-            <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto">
-              <AlertCircle size={32} />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-xl font-black uppercase tracking-tighter text-amber-900">Tabelas não encontradas</h2>
-              <p className="text-amber-800 text-sm">
-                O banco de dados Supabase está conectado, mas as tabelas necessárias (como 'posts') ainda não foram criadas.
-              </p>
-            </div>
-            <div className="space-y-4">
-              <p className="text-xs text-amber-700 font-bold uppercase tracking-widest">Como resolver:</p>
-              <ol className="text-left text-sm text-amber-800 space-y-2 list-decimal pl-4">
-                <li>Abra o seu painel do <strong>Supabase</strong>.</li>
-                <li>Vá em <strong>SQL Editor</strong>.</li>
-                <li>Clique em <strong>New Query</strong>.</li>
-                <li>Copie e cole o código SQL abaixo e clique em <strong>Run</strong>.</li>
-              </ol>
-              
-              <details className="text-left bg-white/50 rounded-xl overflow-hidden border border-amber-200">
-                <summary className="px-4 py-2 text-xs font-bold cursor-pointer hover:bg-white/80 transition-colors">
-                  Ver Código SQL Necessário
-                </summary>
-                <div className="p-4 bg-zinc-900 text-zinc-300 text-[10px] font-mono overflow-x-auto max-h-40">
-                  <pre>{`-- 1. Profiles Table
-CREATE TABLE profiles (
-  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
-  full_name TEXT,
-  email TEXT UNIQUE NOT NULL,
-  avatar_url TEXT,
-  role TEXT DEFAULT 'usuario' CHECK (role IN ('admin', 'redator', 'usuario')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
-);
-
--- 2. Categories Table
-CREATE TABLE categories (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  slug TEXT UNIQUE NOT NULL,
-  description TEXT,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
-);
-
--- 3. Posts Table
-CREATE TABLE posts (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  title TEXT NOT NULL,
-  subtitle TEXT,
-  slug TEXT UNIQUE NOT NULL,
-  excerpt TEXT,
-  content TEXT NOT NULL,
-  cover_image_url TEXT,
-  author_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
-  category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
-  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'archived')),
-  is_featured BOOLEAN DEFAULT false,
-  is_breaking BOOLEAN DEFAULT false,
-  published_at TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
-);
-
--- Enable RLS
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
-
--- Public Read Access
-CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
-CREATE POLICY "Categories are viewable by everyone" ON categories FOR SELECT USING (is_active = true);
-CREATE POLICY "Published posts are viewable by everyone" ON posts FOR SELECT USING (status = 'published');`}</pre>
-                </div>
-              </details>
-            </div>
-            <a 
-              href="/"
-              className="inline-block w-full bg-amber-600 text-white px-6 py-3 rounded-2xl text-sm font-bold hover:bg-amber-700 transition-all"
-            >
-              Já executei, atualizar página
-            </a>
-          </div>
-        </div>
-      );
-    }
   }
 
   if (fetchError) {
@@ -156,7 +65,7 @@ CREATE POLICY "Published posts are viewable by everyone" ON posts FOR SELECT USI
           <AlertCircle className="text-red-600 mx-auto" size={48} />
           <h2 className="text-xl font-black uppercase tracking-tighter text-red-900">Erro ao Carregar Dados</h2>
           <p className="text-red-700 text-sm">
-            Não foi possível carregar as notícias. Verifique se as tabelas do banco de dados foram criadas corretamente.
+            Não foi possível carregar as notícias. Verifique sua conexão e tente novamente.
           </p>
           <a 
             href="/"

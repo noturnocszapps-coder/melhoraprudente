@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { Post, Category, Ad, Settings } from '../types';
+import { Post, Category, Ad, Settings, Comment } from '../types';
 
 export const newsService = {
   async getLatestPosts(limit = 10) {
@@ -84,6 +84,31 @@ export const categoryService = {
     
     if (error) throw error;
     return data as Category[];
+  }
+};
+
+export const commentService = {
+  async getByPost(postId: string) {
+    const { data, error } = await supabase
+      .from('comments')
+      .select('*, user:profiles(*)')
+      .eq('post_id', postId)
+      .eq('status', 'approved')
+      .order('created_at', { ascending: true });
+    
+    if (error) throw error;
+    return data as Comment[];
+  },
+
+  async create(comment: Partial<Comment>) {
+    const { data, error } = await supabase
+      .from('comments')
+      .insert([comment])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data as Comment;
   }
 };
 
