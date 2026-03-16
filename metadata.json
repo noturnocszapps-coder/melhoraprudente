@@ -1,0 +1,7 @@
+{
+  "name": "Melhora Prudente",
+  "description": "Portal de notícias local focado em Presidente Prudente e região, com foco em velocidade, SEO e monetização.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
