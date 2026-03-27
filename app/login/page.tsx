@@ -24,7 +24,12 @@ export default function LoginPage() {
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message === 'Invalid login credentials') {
+          throw new Error('E-mail ou senha inválidos');
+        }
+        throw error;
+      }
 
       // Fetch profile to check role
       const { data: profile } = await supabase
@@ -33,13 +38,13 @@ export default function LoginPage() {
         .eq('id', data.user.id)
         .single();
 
-      if (profile?.role === 'admin' || profile?.role === 'redator') {
+      if (profile?.role === 'admin' || profile?.role === 'editor') {
         router.push('/admin');
       } else {
         router.push('/');
       }
     } catch (err: any) {
-      setError(err.message || 'Erro ao entrar. Verifique suas credenciais.');
+      setError(err.message || 'Erro ao entrar. Tente novamente.');
     } finally {
       setLoading(false);
     }

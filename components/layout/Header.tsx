@@ -2,11 +2,14 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Menu, Search, User, Bell } from 'lucide-react';
+import { Menu, Search, User, Bell, LogOut, LayoutDashboard, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
+  const { user, profile, signOut, isAdmin, isEditor } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white border-b border-zinc-200 shadow-sm">
@@ -52,10 +55,62 @@ export const Header = () => {
             <button className="p-2 text-zinc-600 hover:bg-zinc-100 rounded-full transition-colors">
               <Search size={20} />
             </button>
-            <Link href="/login" className="flex items-center gap-2 px-3 md:px-5 py-2 md:py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-full text-xs md:text-sm font-black uppercase tracking-wider transition-all shadow-lg shadow-zinc-200">
-              <User size={18} className="hidden md:block" />
-              Entrar
-            </Link>
+            
+            {user ? (
+              <div className="relative">
+                <button 
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  className="flex items-center gap-2 px-2 md:px-4 py-2 bg-zinc-50 hover:bg-zinc-100 rounded-full transition-all border border-zinc-100"
+                >
+                  <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-black text-xs uppercase">
+                    {profile?.full_name?.charAt(0) || user.email?.charAt(0)}
+                  </div>
+                  <span className="hidden md:block text-xs font-black uppercase tracking-wider text-zinc-900">
+                    {profile?.full_name?.split(' ')[0] || 'Conta'}
+                  </span>
+                  <ChevronDown size={14} className={cn("text-zinc-400 transition-transform", isUserMenuOpen && "rotate-180")} />
+                </button>
+
+                {isUserMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setIsUserMenuOpen(false)} />
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-zinc-100 py-2 z-20 animate-in fade-in zoom-in-95 duration-100">
+                      <div className="px-4 py-3 border-b border-zinc-50 mb-2">
+                        <p className="text-xs font-black uppercase tracking-widest text-zinc-400 mb-1">Logado como</p>
+                        <p className="text-sm font-bold text-zinc-900 truncate">{user.email}</p>
+                      </div>
+                      
+                      {(isAdmin || isEditor) && (
+                        <Link 
+                          href="/admin" 
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-zinc-700 hover:bg-zinc-50 hover:text-red-600 transition-colors"
+                        >
+                          <LayoutDashboard size={18} />
+                          Painel Admin
+                        </Link>
+                      )}
+                      
+                      <button 
+                        onClick={() => {
+                          signOut();
+                          setIsUserMenuOpen(false);
+                        }}
+                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut size={18} />
+                        Sair
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <Link href="/login" className="flex items-center gap-2 px-3 md:px-5 py-2 md:py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-full text-xs md:text-sm font-black uppercase tracking-wider transition-all shadow-lg shadow-zinc-200">
+                <User size={18} className="hidden md:block" />
+                Entrar
+              </Link>
+            )}
           </div>
         </div>
 
@@ -96,14 +151,50 @@ export const Header = () => {
               </nav>
 
               <div className="mt-auto pt-10 border-t border-zinc-100">
-                <Link 
-                  href="/login" 
-                  className="flex items-center justify-center gap-2 w-full py-4 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest text-sm"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <User size={20} />
-                  Entrar na Conta
-                </Link>
+                {user ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 px-2">
+                      <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center text-white font-black text-sm uppercase">
+                        {profile?.full_name?.charAt(0) || user.email?.charAt(0)}
+                      </div>
+                      <div className="overflow-hidden">
+                        <p className="text-sm font-black uppercase tracking-wider truncate">{profile?.full_name || 'Usuário'}</p>
+                        <p className="text-[10px] text-zinc-500 truncate">{user.email}</p>
+                      </div>
+                    </div>
+                    
+                    {(isAdmin || isEditor) && (
+                      <Link 
+                        href="/admin" 
+                        className="flex items-center justify-center gap-2 w-full py-4 bg-zinc-900 text-white rounded-xl font-black uppercase tracking-widest text-sm"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        <LayoutDashboard size={20} />
+                        Painel Admin
+                      </Link>
+                    )}
+
+                    <button 
+                      onClick={() => {
+                        signOut();
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex items-center justify-center gap-2 w-full py-4 bg-zinc-100 text-red-600 rounded-xl font-black uppercase tracking-widest text-sm"
+                    >
+                      <LogOut size={20} />
+                      Sair da Conta
+                    </button>
+                  </div>
+                ) : (
+                  <Link 
+                    href="/login" 
+                    className="flex items-center justify-center gap-2 w-full py-4 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest text-sm"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <User size={20} />
+                    Entrar na Conta
+                  </Link>
+                )}
               </div>
             </div>
           </div>

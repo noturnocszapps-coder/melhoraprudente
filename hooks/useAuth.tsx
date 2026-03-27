@@ -10,7 +10,8 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
-  isRedator: boolean;
+  isEditor: boolean;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,38 +19,14 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   isAdmin: false,
-  isRedator: false,
+  isEditor: false,
+  signOut: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setProfile(null);
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -59,7 +36,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Profile not found, maybe it's still being created by the trigger
+          console.warn('Profile not found for user:', userId);
+        } else {
+          throw error;
+        }
+      }
       setProfile(data);
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -68,12 +52,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  useEffect(() => {
+    // Get initial session
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        await fetchProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      
+      if (currentUser) {
+        await fetchProfile(currentUser.id);
+      } else {
+        setProfile(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
   const value = {
     user,
     profile,
     loading,
     isAdmin: profile?.role === 'admin',
-    isRedator: profile?.role === 'redator' || profile?.role === 'admin',
+    isEditor: profile?.role === 'editor' || profile?.role === 'admin',
+    signOut,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

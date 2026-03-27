@@ -28,7 +28,7 @@ export default function AdminUsers() {
     setLoading(false);
   };
 
-  const handleRoleChange = async (userId: string, newRole: 'admin' | 'redator' | 'usuario') => {
+  const handleRoleChange = async (userId: string, newRole: 'admin' | 'editor' | 'user') => {
     setUpdatingId(userId);
     const { error } = await supabase
       .from('profiles')
@@ -118,12 +118,12 @@ export default function AdminUsers() {
                         className={cn(
                           "bg-zinc-100 border-none rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest outline-none transition-all cursor-pointer",
                           user.role === 'admin' ? "text-red-600 bg-red-50" : 
-                          user.role === 'redator' ? "text-blue-600 bg-blue-50" : 
+                          user.role === 'editor' ? "text-blue-600 bg-blue-50" : 
                           "text-zinc-500 bg-zinc-100"
                         )}
                       >
-                        <option value="usuario">Leitor</option>
-                        <option value="redator">Redator</option>
+                        <option value="user">Leitor</option>
+                        <option value="editor">Editor</option>
                         <option value="admin">Admin</option>
                       </select>
                       {updatingId === user.id && <Loader2 className="animate-spin text-zinc-400" size={14} />}

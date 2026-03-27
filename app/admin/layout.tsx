@@ -21,7 +21,7 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { profile, isAdmin, isRedator, loading } = useAuth();
+  const { profile, isAdmin, isEditor, loading, signOut } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -29,11 +29,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (!loading) {
       if (!profile) {
         router.push('/login');
-      } else if (!isRedator) {
+      } else if (!isEditor) {
         router.push('/');
       }
     }
-  }, [profile, loading, router, isRedator]);
+  }, [profile, loading, router, isEditor]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50">
@@ -44,7 +44,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </div>
   );
 
-  if (!profile || !isRedator) return null;
+  if (!profile || !isEditor) return null;
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
@@ -91,7 +91,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <div className="p-4 border-t border-zinc-100">
           <button 
-            onClick={() => supabase.auth.signOut()}
+            onClick={() => signOut()}
             className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-bold text-zinc-500 hover:bg-red-50 hover:text-red-600 transition-all"
           >
             <LogOut size={20} />

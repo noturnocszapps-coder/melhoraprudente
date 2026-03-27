@@ -7,7 +7,7 @@ CREATE TABLE profiles (
   full_name TEXT,
   email TEXT UNIQUE NOT NULL,
   avatar_url TEXT,
-  role TEXT DEFAULT 'usuario' CHECK (role IN ('admin', 'redator', 'usuario')),
+  role TEXT DEFAULT 'user' CHECK (role IN ('admin', 'editor', 'user')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
@@ -124,7 +124,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
   INSERT INTO public.profiles (id, email, full_name, role)
-  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', 'usuario');
+  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', 'user');
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [fullName, setFullName] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [confirmPassword, setConfirmPassword] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const router = useRouter();
@@ -19,8 +20,14 @@ export default function RegisterPage() {
     setLoading(true);
     setError(null);
 
+    if (password !== confirmPassword) {
+      setError('As senhas não coincidem');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -31,9 +38,31 @@ export default function RegisterPage() {
       });
 
       if (error) throw error;
+
+      if (data.user) {
+        // Fallback: Create profile if trigger fails or for immediate feedback
+        // In a real production app, the trigger is more reliable, but this ensures the row exists.
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([
+            {
+              id: data.user.id,
+              full_name: fullName,
+              email: email,
+              role: 'user',
+            },
+          ]);
+        
+        // We ignore error here because it might already exist due to trigger
+      }
+
       router.push('/login?registered=true');
     } catch (err: any) {
-      setError(err.message || 'Erro ao cadastrar. Tente novamente.');
+      if (err.message === 'User already registered') {
+        setError('Este e-mail já está cadastrado');
+      } else {
+        setError(err.message || 'Erro ao cadastrar. Tente novamente.');
+      }
     } finally {
       setLoading(false);
     }
@@ -96,6 +125,22 @@ export default function RegisterPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-zinc-50 border-none rounded-2xl py-4 pl-12 pr-4 text-sm focus:ring-2 focus:ring-red-600 transition-all"
                 placeholder="Mínimo 6 caracteres"
+                minLength={6}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase tracking-widest text-zinc-400 ml-1">Confirmar Senha</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
+              <input
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full bg-zinc-50 border-none rounded-2xl py-4 pl-12 pr-4 text-sm focus:ring-2 focus:ring-red-600 transition-all"
+                placeholder="Confirme sua senha"
                 minLength={6}
               />
             </div>
