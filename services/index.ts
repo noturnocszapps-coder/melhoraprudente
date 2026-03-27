@@ -32,12 +32,33 @@ export const newsService = {
     return data as Post[];
   },
 
+  async getBreakingNews(limit = 5) {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*, category:categories(*), author:profiles(*)')
+      .eq('status', 'published')
+      .eq('is_breaking', true)
+      .order('published_at', { ascending: false })
+      .limit(limit);
+    
+    if (error) {
+      console.error('Supabase error in getBreakingNews:', error);
+      throw error;
+    }
+    return data as Post[];
+  },
+
+  async getMostRead(limit = 5) {
+    // Fallback to latest for now as we don't have a view count system yet
+    return this.getLatestPosts(limit);
+  },
+
   async getPostsByCategory(categorySlug: string, limit = 10) {
     const { data, error } = await supabase
       .from('posts')
       .select('*, category:categories!inner(*), author:profiles(*)')
       .eq('status', 'published')
-      .eq('categories.slug', categorySlug)
+      .eq('category.slug', categorySlug)
       .order('published_at', { ascending: false })
       .limit(limit);
     
@@ -84,6 +105,17 @@ export const categoryService = {
     
     if (error) throw error;
     return data as Category[];
+  },
+
+  async getBySlug(slug: string) {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('slug', slug)
+      .single();
+    
+    if (error) throw error;
+    return data as Category;
   }
 };
 

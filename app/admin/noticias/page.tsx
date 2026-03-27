@@ -91,16 +91,28 @@ export default function NewsList() {
                   <td className="py-4 font-bold text-sm max-w-md truncate">{post.title}</td>
                   <td className="py-4 text-sm text-zinc-500">{post.category?.name || 'Sem categoria'}</td>
                   <td className="py-4">
-                    <span className={cn(
-                      "px-2 py-1 text-[10px] font-black uppercase rounded",
-                      post.status === 'published' ? "bg-emerald-50 text-emerald-600" :
-                      post.status === 'draft' ? "bg-zinc-100 text-zinc-500" :
-                      "bg-amber-50 text-amber-600"
-                    )}>
-                      {post.status === 'published' ? 'Publicado' : 
-                       post.status === 'draft' ? 'Rascunho' : 
-                       post.status === 'review' ? 'Revisão' : 'Arquivado'}
-                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <span className={cn(
+                        "px-2 py-1 text-[10px] font-black uppercase rounded",
+                        post.status === 'published' ? "bg-emerald-50 text-emerald-600" :
+                        post.status === 'draft' ? "bg-zinc-100 text-zinc-500" :
+                        "bg-amber-50 text-amber-600"
+                      )}>
+                        {post.status === 'published' ? 'Publicado' : 
+                         post.status === 'draft' ? 'Rascunho' : 
+                         post.status === 'review' ? 'Revisão' : 'Arquivado'}
+                      </span>
+                      {post.is_featured && (
+                        <span className="px-2 py-1 text-[10px] font-black uppercase rounded bg-blue-50 text-blue-600">
+                          Destaque
+                        </span>
+                      )}
+                      {post.is_breaking && (
+                        <span className="px-2 py-1 text-[10px] font-black uppercase rounded bg-red-50 text-red-600 animate-pulse">
+                          Urgente
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-4 text-sm text-zinc-500">{formatDate(post.created_at)}</td>
                   <td className="py-4">

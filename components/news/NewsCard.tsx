@@ -81,6 +81,24 @@ export const NewsCard = ({ post, variant = 'default', className }: NewsCardProps
     );
   }
 
+  if (variant === 'compact') {
+    return (
+      <Link 
+        href={`/noticias/${slug}`} 
+        className={cn("group flex gap-3 items-center py-3 border-b border-zinc-100 last:border-0", className)}
+      >
+        <div className="flex-1 space-y-1">
+          <span className="text-[9px] font-black text-red-600 uppercase tracking-widest">
+            {category?.name}
+          </span>
+          <h3 className="text-sm font-bold text-zinc-900 leading-tight group-hover:text-red-600 transition-colors line-clamp-2">
+            {title}
+          </h3>
+        </div>
+      </Link>
+    );
+  }
+
   return (
     <Link 
       href={`/noticias/${slug}`} 
