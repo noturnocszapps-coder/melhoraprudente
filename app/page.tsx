@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { NewsCard } from '@/components/news/NewsCard';
 import BreakingNews from '@/components/news/BreakingNews';
 import { newsService } from '@/services';
@@ -109,62 +110,61 @@ export default async function Home() {
       <BreakingNews posts={breakingNews} />
 
       {/* Top Ad Slot */}
-      <div className="container mx-auto px-4 pt-6">
-        <AdSlot position="home_top" />
+      <div className="container mx-auto px-4 pt-8">
+        <AdSlot position="home_top" className="bg-zinc-50 border border-zinc-100 rounded-xl" />
       </div>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="container mx-auto px-4 py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           {/* Main Content Area */}
-          <div className="lg:col-span-8 space-y-12">
+          <div className="lg:col-span-8 space-y-20">
             {/* Hero Section */}
             <section>
               {featuredPost ? (
                 <NewsCard post={featuredPost} variant="featured" />
               ) : (
-                <div className="aspect-[16/9] bg-zinc-100 rounded-2xl animate-pulse flex items-center justify-center">
-                  <p className="text-zinc-400 font-bold uppercase tracking-widest">Carregando destaque...</p>
+                <div className="aspect-[16/9] bg-zinc-100 rounded-[2rem] animate-pulse flex items-center justify-center">
+                  <p className="text-zinc-400 font-black uppercase tracking-[0.3em] text-xs">Carregando destaque...</p>
                 </div>
               )}
             </section>
 
             {/* Latest News Grid */}
             <section>
-              <div className="flex items-center justify-between mb-8 border-b border-zinc-100 pb-4">
-                <h2 className="text-2xl font-black tracking-tighter uppercase flex items-center gap-2">
-                  <span className="w-2 h-8 bg-red-600 rounded-full" />
+              <div className="flex items-center justify-between mb-10 border-b-2 border-zinc-900 pb-4">
+                <h2 className="text-3xl font-black tracking-tighter uppercase flex items-center gap-3">
+                  <span className="w-3 h-10 bg-red-600 rounded-full" />
                   Últimas Notícias
                 </h2>
-                <a href="/noticias" className="text-sm font-bold text-red-600 hover:underline flex items-center gap-1">
-                  Ver todas <ChevronRight size={16} />
+                <a href="/noticias" className="text-xs font-black uppercase tracking-widest text-red-600 hover:text-red-700 transition-colors flex items-center gap-2 group">
+                  Ver todas <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
                 </a>
               </div>
               
               {latestNews.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-16">
                   {latestNews.map((post) => (
                     <NewsCard key={post.id} post={post} />
                   ))}
                 </div>
               ) : (
-                <div className="py-20 text-center bg-zinc-50 rounded-2xl">
-                  <p className="text-zinc-400 font-medium">Nenhuma notícia encontrada no momento.</p>
+                <div className="py-24 text-center bg-zinc-50 rounded-[2rem] border-2 border-dashed border-zinc-200">
+                  <p className="text-zinc-400 font-bold uppercase tracking-widest text-sm">Nenhuma notícia encontrada no momento.</p>
                 </div>
               )}
             </section>
 
             {/* Middle Ad Slot */}
-            <AdSlot position="home_middle" className="min-h-[100px]" />
+            <div className="py-4">
+              <AdSlot position="home_middle" className="min-h-[120px] bg-zinc-50 border border-zinc-100 rounded-2xl" />
+            </div>
 
             {/* Category Blocks */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-20">
               {/* Cidade */}
               <CategoryBlock title="Cidade" slug="cidade" posts={cityNews} />
               {/* Segurança */}
               <CategoryBlock title="Segurança" slug="seguranca" posts={securityNews} />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
               {/* Política */}
               <CategoryBlock title="Política" slug="politica" posts={politicsNews} />
               {/* Esportes */}
@@ -173,43 +173,55 @@ export default async function Home() {
           </div>
 
           {/* Sidebar */}
-          <aside className="lg:col-span-4 space-y-10">
+          <aside className="lg:col-span-4 space-y-12">
             {/* Sidebar Ad */}
-            <AdSlot position="home_sidebar" className="min-h-[250px] bg-zinc-50 rounded-xl" />
+            <div className="sticky top-32 space-y-12">
+              <AdSlot position="home_sidebar" className="min-h-[300px] bg-zinc-50 border border-zinc-100 rounded-[2rem]" />
 
-            {/* Mais Lidas */}
-            <section className="bg-zinc-50 p-6 rounded-2xl border border-zinc-100">
-              <div className="flex items-center gap-2 mb-6">
-                <TrendingUp className="text-red-600" size={20} />
-                <h3 className="text-lg font-black uppercase tracking-tighter">Mais Lidas</h3>
-              </div>
-              <div className="space-y-2">
-                {mostRead.map((post, index) => (
-                  <div key={post.id} className="flex gap-4 items-start group">
-                    <span className="text-2xl font-black text-zinc-200 group-hover:text-red-600 transition-colors">
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
-                    <NewsCard post={post} variant="compact" className="flex-1 border-0 py-0 pb-4" />
+              {/* Mais Lidas */}
+              <section className="bg-zinc-950 text-white p-8 rounded-[2rem] shadow-2xl shadow-zinc-200">
+                <div className="flex items-center gap-3 mb-10">
+                  <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center">
+                    <TrendingUp className="text-white" size={20} />
                   </div>
-                ))}
-              </div>
-            </section>
+                  <h3 className="text-xl font-black uppercase tracking-tighter">Mais Lidas</h3>
+                </div>
+                <div className="space-y-8">
+                  {mostRead.map((post, index) => (
+                    <div key={post.id} className="flex gap-5 items-start group">
+                      <span className="text-4xl font-black text-zinc-800 group-hover:text-red-600 transition-colors leading-none">
+                        {index + 1}
+                      </span>
+                      <Link href={`/noticias/${post.slug}`} className="flex-1 space-y-2">
+                        <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">{post.category?.name}</span>
+                        <h4 className="text-sm font-black leading-tight group-hover:text-red-500 transition-colors line-clamp-2">
+                          {post.title}
+                        </h4>
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </section>
 
-            {/* Newsletter or Socials Placeholder */}
-            <section className="bg-red-600 p-8 rounded-2xl text-white">
-              <h3 className="text-xl font-black uppercase tracking-tighter mb-2">Fique por dentro</h3>
-              <p className="text-red-100 text-sm mb-6">Receba as principais notícias de Presidente Prudente no seu WhatsApp.</p>
-              <button className="w-full bg-white text-red-600 font-bold py-3 rounded-xl hover:bg-red-50 transition-colors">
-                Entrar no Grupo
-              </button>
-            </section>
+              {/* Newsletter / Socials */}
+              <section className="relative overflow-hidden bg-red-600 p-10 rounded-[2rem] text-white shadow-xl shadow-red-200">
+                <div className="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+                <div className="relative z-10">
+                  <h3 className="text-2xl font-black uppercase tracking-tighter mb-4 leading-none">Fique por dentro</h3>
+                  <p className="text-red-100 text-sm mb-8 font-medium leading-relaxed">Receba as principais notícias de Presidente Prudente diretamente no seu WhatsApp.</p>
+                  <button className="w-full bg-white text-red-600 font-black py-4 rounded-2xl hover:bg-red-50 transition-all shadow-lg uppercase tracking-widest text-xs">
+                    Entrar no Grupo
+                  </button>
+                </div>
+              </section>
+            </div>
           </aside>
         </div>
       </main>
 
       {/* Footer Ad Slot */}
-      <section className="container mx-auto px-4 py-12">
-        <AdSlot position="home_footer" className="min-h-[120px] md:min-h-[250px]" />
+      <section className="container mx-auto px-4 py-20 border-t border-zinc-100">
+        <AdSlot position="home_footer" className="min-h-[150px] md:min-h-[280px] bg-zinc-50 border border-zinc-100 rounded-[2rem]" />
       </section>
     </div>
   );
@@ -217,23 +229,23 @@ export default async function Home() {
 
 function CategoryBlock({ title, slug, posts }: { title: string, slug: string, posts: Post[] }) {
   return (
-    <section className="space-y-6">
-      <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
-        <h3 className="text-lg font-black uppercase tracking-tighter text-zinc-900">{title}</h3>
-        <a href={`/categoria/${slug}`} className="text-xs font-bold text-red-600 hover:underline">Ver mais</a>
+    <section className="space-y-8">
+      <div className="flex items-center justify-between border-b-2 border-zinc-900 pb-3">
+        <h3 className="text-xl font-black uppercase tracking-tighter text-zinc-900">{title}</h3>
+        <a href={`/categoria/${slug}`} className="text-[10px] font-black uppercase tracking-widest text-red-600 hover:text-red-700 transition-colors">Ver mais</a>
       </div>
-      <div className="space-y-4">
+      <div className="space-y-8">
         {posts.length > 0 ? (
           <>
             <NewsCard post={posts[0]} />
-            <div className="space-y-3">
+            <div className="space-y-6 pt-4 border-t border-zinc-100">
               {posts.slice(1).map(post => (
                 <NewsCard key={post.id} post={post} variant="compact" />
               ))}
             </div>
           </>
         ) : (
-          <p className="text-zinc-400 text-sm italic">Em breve mais notícias.</p>
+          <p className="text-zinc-400 text-sm font-medium italic py-10 text-center bg-zinc-50 rounded-2xl">Em breve mais notícias.</p>
         )}
       </div>
     </section>

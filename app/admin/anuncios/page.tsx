@@ -72,7 +72,6 @@ export default function AdminAds() {
       fetchAds();
     } catch (error) {
       console.error('Error saving ad:', error);
-      alert('Erro ao salvar anúncio.');
     } finally {
       setSaving(false);
     }
@@ -92,14 +91,14 @@ export default function AdminAds() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Excluir este anúncio?')) return;
+    // In a real app, use a custom modal
+    if (!window.confirm('Excluir este anúncio?')) return;
     try {
       const { error } = await supabase.from('ads').delete().eq('id', id);
       if (error) throw error;
       fetchAds();
     } catch (error) {
       console.error('Error deleting ad:', error);
-      alert('Erro ao excluir anúncio.');
     }
   };
 

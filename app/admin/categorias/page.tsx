@@ -41,12 +41,12 @@ export default function AdminCategories() {
         .from('categories')
         .update({ ...formData, slug })
         .eq('id', editingCategory.id);
-      if (error) alert('Erro ao atualizar categoria');
+      if (error) console.error('Erro ao atualizar categoria:', error);
     } else {
       const { error } = await supabase
         .from('categories')
         .insert([{ ...formData, slug }]);
-      if (error) alert('Erro ao criar categoria');
+      if (error) console.error('Erro ao criar categoria:', error);
     }
 
     setSaving(false);
@@ -57,14 +57,15 @@ export default function AdminCategories() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta categoria?')) return;
+    // In a real app, use a custom modal
+    if (!window.confirm('Tem certeza que deseja excluir esta categoria?')) return;
     
     const { error } = await supabase
       .from('categories')
       .delete()
       .eq('id', id);
     
-    if (error) alert('Erro ao excluir categoria. Verifique se existem notícias vinculadas.');
+    if (error) console.error('Erro ao excluir categoria. Verifique se existem notícias vinculadas:', error);
     else fetchCategories();
   };
 

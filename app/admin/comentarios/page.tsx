@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Check, X, Trash2, Loader2, MessageSquare, User } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { Comment } from '@/types';
 
 export default function AdminComments() {
@@ -39,12 +39,16 @@ export default function AdminComments() {
       .update({ status })
       .eq('id', id);
     
-    if (error) alert('Erro ao atualizar status do comentário');
-    else fetchComments();
+    if (error) {
+      console.error('Erro ao atualizar status do comentário:', error);
+    } else {
+      fetchComments();
+    }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir permanentemente este comentário?')) return;
+    // In a real app, use a custom modal
+    if (!window.confirm('Tem certeza que deseja excluir permanentemente este comentário?')) return;
     
     const { error } = await supabase
       .from('comments')
@@ -101,7 +105,7 @@ export default function AdminComments() {
                   <div>
                     <p className="font-bold text-zinc-900">{comment.user?.full_name || 'Usuário'}</p>
                     <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
-                      {new Date(comment.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {formatDate(comment.created_at)}
                     </p>
                   </div>
                 </div>

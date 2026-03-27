@@ -31,8 +31,7 @@ export default function RegisterPage() {
       });
 
       if (error) throw error;
-      alert('Cadastro realizado com sucesso!');
-      router.push('/');
+      router.push('/login?registered=true');
     } catch (err: any) {
       setError(err.message || 'Erro ao cadastrar. Tente novamente.');
     } finally {

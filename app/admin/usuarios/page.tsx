@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { User, Shield, Loader2, Search, Mail, Calendar } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { Profile } from '@/types';
 
 export default function AdminUsers() {
@@ -36,7 +36,7 @@ export default function AdminUsers() {
       .eq('id', userId);
     
     if (error) {
-      alert('Erro ao atualizar cargo do usuário');
+      console.error('Erro ao atualizar cargo do usuário:', error);
     } else {
       setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
     }
@@ -105,7 +105,7 @@ export default function AdminUsers() {
                     <div className="flex items-center gap-2 text-zinc-500">
                       <Calendar size={14} />
                       <span className="text-sm">
-                        {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                        {formatDate(user.created_at)}
                       </span>
                     </div>
                   </td>

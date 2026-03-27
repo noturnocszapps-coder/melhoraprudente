@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import Link from 'next/link';
 import { Loader2, Send, User } from 'lucide-react';
 import { Comment } from '@/types';
 import { formatDate } from '@/lib/utils';
@@ -60,7 +61,6 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       fetchComments();
     } catch (error) {
       console.error('Error posting comment:', error);
-      alert('Erro ao postar comentário.');
     } finally {
       setSubmitting(false);
     }
@@ -105,9 +105,9 @@ export default function CommentSection({ postId }: CommentSectionProps) {
         <div className="bg-zinc-50 p-6 rounded-2xl text-center space-y-3">
           <p className="text-zinc-500 text-sm">Você precisa estar logado para comentar.</p>
           <div className="flex justify-center gap-4">
-            <a href="/login" className="text-red-600 font-bold text-sm hover:underline">Entrar</a>
+            <Link href="/login" className="text-red-600 font-bold text-sm hover:underline">Entrar</Link>
             <span className="text-zinc-300">|</span>
-            <a href="/cadastro" className="text-red-600 font-bold text-sm hover:underline">Criar conta</a>
+            <Link href="/cadastro" className="text-red-600 font-bold text-sm hover:underline">Criar conta</Link>
           </div>
         </div>
       )}

@@ -51,10 +51,9 @@ export default function AdminSettings() {
         .upsert(settings);
 
       if (error) throw error;
-      alert('Configurações salvas com sucesso!');
+      console.log('Configurações salvas com sucesso!');
     } catch (error) {
       console.error('Error saving settings:', error);
-      alert('Erro ao salvar configurações.');
     } finally {
       setSaving(false);
     }

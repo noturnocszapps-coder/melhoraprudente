@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -68,12 +69,12 @@ export default function AdminDashboard() {
         <div className="bg-zinc-50 p-8 rounded-3xl space-y-4">
           <h3 className="text-sm font-black uppercase tracking-widest text-zinc-900">Ações Rápidas</h3>
           <div className="grid grid-cols-2 gap-4">
-            <a href="/admin/noticias/nova" className="bg-white p-4 rounded-2xl border border-zinc-100 hover:border-red-200 transition-all text-center">
+            <Link href="/admin/noticias/nova" className="bg-white p-4 rounded-2xl border border-zinc-100 hover:border-red-200 transition-all text-center">
               <p className="text-xs font-bold text-zinc-600">Nova Notícia</p>
-            </a>
-            <a href="/admin/categorias" className="bg-white p-4 rounded-2xl border border-zinc-100 hover:border-red-200 transition-all text-center">
+            </Link>
+            <Link href="/admin/categorias" className="bg-white p-4 rounded-2xl border border-zinc-100 hover:border-red-200 transition-all text-center">
               <p className="text-xs font-bold text-zinc-600">Gerenciar Categorias</p>
-            </a>
+            </Link>
           </div>
         </div>
       </div>

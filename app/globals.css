@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@plugin "@tailwindcss/typography";
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
@@ -16,6 +18,14 @@
   animation-fill-mode: both;
 }
 
+.slide-in-from-top {
+  animation-name: slide-in-from-top;
+}
+
+.slide-in-from-left {
+  animation-name: slide-in-from-left;
+}
+
 @keyframes slide-in-from-top {
   from {
     transform: translateY(-10px);
@@ -24,6 +34,15 @@
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+@keyframes slide-in-from-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
   }
 }
 
