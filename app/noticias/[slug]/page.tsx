@@ -51,7 +51,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function NewsDetailPage({ params }: Props) {
   const { slug } = await params;
-  let post;
+  let post: Post | null = null;
   let relatedPosts: Post[] = [];
   let mostRead: Post[] = [];
 

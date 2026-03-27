@@ -144,7 +144,7 @@ export default function AdminComments() {
 
               <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
                 <span>Em:</span>
-                <span className="text-zinc-900">{(comment as any).posts?.title || 'Notícia excluída'}</span>
+                <span className="text-zinc-900">{comment.posts?.title || 'Notícia excluída'}</span>
               </div>
             </div>
           ))}

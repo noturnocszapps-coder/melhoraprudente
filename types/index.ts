@@ -53,6 +53,7 @@ export interface Comment {
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   user?: Profile;
+  posts?: { title: string };
 }
 
 export interface Ad {

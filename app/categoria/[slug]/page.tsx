@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { newsService, categoryService } from '@/services';
 import { Metadata } from 'next';
-import { Post } from '@/types';
+import { Post, Category } from '@/types';
 import { NewsCard } from '@/components/news/NewsCard';
 import AdSlot from '@/components/AdSlot';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CategoryPage({ params }: Props) {
   const { slug } = await params;
   let posts: Post[] = [];
-  let category;
+  let category: Category | null = null;
 
   try {
     category = await categoryService.getBySlug(slug);

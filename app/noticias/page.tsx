@@ -1,6 +1,7 @@
 import React from 'react';
 import { newsService } from '@/services';
 import { Metadata } from 'next';
+import { Post } from '@/types';
 import { NewsCard } from '@/components/news/NewsCard';
 import AdSlot from '@/components/AdSlot';
 import { ChevronRight } from 'lucide-react';
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AllNewsPage() {
-  let posts = [];
+  let posts: Post[] = [];
 
   try {
     posts = await newsService.getLatestPosts(48);
