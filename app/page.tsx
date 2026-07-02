@@ -12,28 +12,6 @@ import TrendingWidget from '@/components/engagement/TrendingWidget';
 export const revalidate = 60; // Revalidate every minute for real-time news updates
 
 export default async function Home() {
-  if (!isSupabaseConfigured) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-zinc-50 border border-zinc-200 rounded-3xl p-8 text-center space-y-6">
-          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
-            <Settings size={32} />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-xl font-black uppercase tracking-tighter">Configuração Necessária</h2>
-            <p className="text-zinc-500 text-sm">
-              As credenciais do Supabase não foram encontradas. Por favor, configure as variáveis de ambiente no painel de Segredos.
-            </p>
-          </div>
-          <div className="bg-white p-4 rounded-xl text-left text-xs font-mono text-zinc-600 overflow-x-auto">
-            <p>NEXT_PUBLIC_SUPABASE_URL</p>
-            <p>NEXT_PUBLIC_SUPABASE_ANON_KEY</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   let allNews: News[] = [];
   let fetchError = false;
   let errorDetails: any = null;

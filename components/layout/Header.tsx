@@ -35,23 +35,23 @@ export const Header = () => {
           {/* Mobile Menu Toggle */}
           <button 
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="lg:hidden p-2 -ml-2 text-zinc-900 hover:bg-zinc-100 rounded-full transition-colors"
+            className="lg:hidden p-2 -ml-2 text-zinc-900 hover:bg-zinc-100 rounded-full transition-colors flex-shrink-0"
           >
             <Menu size={24} />
           </button>
 
           {/* Logo */}
-          <Link href="/" className="flex flex-col items-center lg:items-start absolute left-1/2 -translate-x-1/2 lg:static lg:translate-x-0">
-            <span className="text-2xl md:text-4xl font-black tracking-tighter text-zinc-900 leading-none">
+          <Link href="/" className="flex flex-col items-center lg:items-start min-w-0 flex-1 lg:flex-none mx-2">
+            <span className="text-lg min-[360px]:text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black tracking-tighter text-zinc-900 leading-none whitespace-nowrap truncate block w-full text-center lg:text-left">
               MELHORA<span className="text-red-600">PRUDENTE</span>
             </span>
-            <span className="hidden lg:block text-[10px] font-bold text-zinc-500 uppercase tracking-[0.3em] mt-1">
+            <span className="hidden lg:block text-[10px] font-bold text-zinc-500 uppercase tracking-[0.3em] mt-1 whitespace-nowrap">
               Notícias de Presidente Prudente e Região
             </span>
           </Link>
 
           {/* Actions */}
-          <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
             <button className="p-2 text-zinc-600 hover:bg-zinc-100 rounded-full transition-colors">
               <Search size={20} />
             </button>

@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Post, Category, Ad, Settings, Comment, News, NewsLike, NewsComment } from '../types';
 
 // Helper to interact with LocalStorage for browser-side persistence of fallback data
@@ -162,6 +162,28 @@ const DEFAULT_ADS: Ad[] = [
     starts_at: new Date(Date.now() - 86400000).toISOString(),
     ends_at: new Date(Date.now() + 86400000).toISOString(),
     created_at: new Date().toISOString()
+  },
+  {
+    id: 'ad-3',
+    name: 'Prudenshopping',
+    image_url: 'https://images.unsplash.com/photo-1563013544-824ae1d704d3?auto=format&fit=crop&q=80&w=600',
+    target_url: 'https://www.prudenshopping.com.br/',
+    slot: 'home_sidebar',
+    is_active: true,
+    starts_at: new Date(Date.now() - 86400000).toISOString(),
+    ends_at: new Date(Date.now() + 86400000).toISOString(),
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'ad-4',
+    name: 'Unoeste - Universidade do Oeste Paulista',
+    image_url: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=800',
+    target_url: 'https://www.unoeste.br/',
+    slot: 'home_footer',
+    is_active: true,
+    starts_at: new Date(Date.now() - 86400000).toISOString(),
+    ends_at: new Date(Date.now() + 86400000).toISOString(),
+    created_at: new Date().toISOString()
   }
 ];
 
@@ -214,9 +236,95 @@ function mapPostToNews(post: any): News {
 }
 
 export const newsPortalService = {
+  async autoSeedDatabase() {
+    if (!isSupabaseConfigured) return;
+    try {
+      // 1. Check and seed categories
+      const { data: existingCats } = await supabase.from('categories').select('*');
+      const categoriesMap: { [key: string]: string } = {};
+
+      if (existingCats && existingCats.length > 0) {
+        existingCats.forEach(cat => {
+          categoriesMap[cat.slug] = cat.id;
+        });
+      } else {
+        const catsToInsert = DEFAULT_CATEGORIES.map(cat => ({
+          name: cat.name,
+          slug: cat.slug,
+          description: cat.description || '',
+          is_active: true
+        }));
+
+        const { data: insertedCats, error: catErr } = await supabase
+          .from('categories')
+          .insert(catsToInsert)
+          .select('*');
+
+        if (catErr) throw catErr;
+
+        if (insertedCats) {
+          insertedCats.forEach(cat => {
+            categoriesMap[cat.slug] = cat.id;
+          });
+        }
+      }
+
+      // 2. Insert posts
+      const postsToInsert = DEFAULT_POSTS.map(post => {
+        const catSlug = post.category?.slug || 'geral';
+        const categoryId = categoriesMap[catSlug] || null;
+
+        return {
+          title: post.title,
+          subtitle: post.subtitle || '',
+          slug: post.slug,
+          excerpt: post.excerpt || '',
+          content: post.content,
+          cover_image_url: post.cover_image_url || null,
+          category_id: categoryId,
+          status: 'published',
+          is_featured: post.is_featured || false,
+          is_breaking: post.is_breaking || false,
+          published_at: post.published_at || new Date().toISOString(),
+          created_at: post.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      });
+
+      const { error: postErr } = await supabase
+        .from('posts')
+        .insert(postsToInsert);
+
+      if (postErr) throw postErr;
+
+      // 3. Also populate the 'news' table for maximum compatibility with Etapa 1
+      try {
+        const newsToInsert = DEFAULT_POSTS.map(post => ({
+          title: post.title,
+          slug: post.slug,
+          content: post.content,
+          excerpt: post.excerpt || '',
+          cover_image: post.cover_image_url || null,
+          category: post.category?.name || 'Geral',
+          status: 'published',
+          created_at: post.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+
+        await supabase.from('news').insert(newsToInsert);
+      } catch (newsErr) {
+        console.warn('Could not seed "news" table:', newsErr);
+      }
+      
+      console.log('Database successfully seeded with initial local news!');
+    } catch (err) {
+      console.error('Failed to auto-seed database:', err);
+    }
+  },
+
   async getLatestNews(limit = 10) {
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('posts')
         .select('*, category:categories(*), author:profiles(*)')
         .eq('status', 'published')
@@ -224,6 +332,21 @@ export const newsPortalService = {
         .limit(limit);
 
       if (error) throw error;
+
+      if (isSupabaseConfigured && (!data || data.length === 0)) {
+        await this.autoSeedDatabase();
+        const { data: reFetched, error: reError } = await supabase
+          .from('posts')
+          .select('*, category:categories(*), author:profiles(*)')
+          .eq('status', 'published')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+          
+        if (!reError && reFetched) {
+          data = reFetched;
+        }
+      }
+
       return (data || []).map(mapPostToNews);
     } catch (err) {
       console.warn('Falling back to local news cache:', err);
@@ -752,17 +875,44 @@ export const engagementService = {
   async getTrendingNews(limit = 5): Promise<(News & { likesCount: number; commentsCount: number; score: number })[]> {
     try {
       const newsList = await newsPortalService.getLatestNews(100);
-      const likes = getStoredData<NewsLike[]>('mp_fallback_likes', []);
-      const comments = getStoredData<any[]>('mp_fallback_news_comments', []);
+      
+      let likesList: any[] = [];
+      let commentsList: any[] = [];
+      let loadedFromDb = false;
+
+      if (isSupabaseConfigured) {
+        try {
+          const { data: dbLikes, error: likesErr } = await supabase.from('news_likes').select('*');
+          const { data: dbComments, error: commentsErr } = await supabase.from('news_comments').select('*');
+          if (!likesErr && dbLikes) {
+            likesList = dbLikes;
+            loadedFromDb = true;
+          }
+          if (!commentsErr && dbComments) {
+            commentsList = dbComments;
+            loadedFromDb = true;
+          }
+        } catch (dbErr) {
+          console.warn('Error fetching engagement from Supabase for trending:', dbErr);
+        }
+      }
+
+      if (!loadedFromDb) {
+        likesList = getStoredData<NewsLike[]>('mp_fallback_likes', []);
+        commentsList = getStoredData<any[]>('mp_fallback_news_comments', []);
+      }
 
       const newsWithEngagement = newsList.map(news => {
-        const likesCount = likes.filter(l => l.news_id === news.id).length;
-        const commentsCount = comments.filter(c => c.news_id === news.id).length;
+        const likesCount = likesList.filter(l => l.news_id === news.id).length;
+        const commentsCount = commentsList.filter(c => c.news_id === news.id).length;
         
         const ageInHours = (Date.now() - new Date(news.created_at).getTime()) / 3600000;
-        const recencyScore = Math.max(0, 100 - ageInHours);
         
-        const score = (likesCount * 2) + (commentsCount * 5) + recencyScore;
+        // Recency Score: maximum 48 points for fresh posts (under 48h), sliding down linearly to 0
+        const recencyScore = ageInHours <= 48 ? Math.max(0, 48 - ageInHours) : 0;
+        
+        // Exact formula: score = (likes * 3) + (comments * 5) + recency (up to 48h)
+        const score = (likesCount * 3) + (commentsCount * 5) + recencyScore;
 
         return {
           ...news,
