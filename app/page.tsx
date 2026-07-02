@@ -16,41 +16,28 @@ export default async function Home() {
   let fetchError = false;
   let errorDetails: any = null;
 
+  // Connection Debugging Logs
+  console.log('[Melhora Prudente] -- INICIANDO CARREGAMENTO DA HOME --');
+  console.log('[Melhora Prudente] Supabase está configurado?:', isSupabaseConfigured);
+
   try {
-    // Fetch latest news from the custom 'news' table
     allNews = await newsPortalService.getLatestNews(30);
+    console.log(`[Melhora Prudente] Carregamento bem-sucedido! Total de notícias obtidas: ${allNews.length}`);
+    if (allNews.length > 0) {
+      console.log('[Melhora Prudente] Amostra da primeira notícia carregada:', {
+        id: allNews[0].id,
+        title: allNews[0].title,
+        status: allNews[0].status,
+        category: allNews[0].category
+      });
+    } else {
+      console.log('[Melhora Prudente] Alerta: Banco de dados ou cache local retornou 0 notícias.');
+    }
   } catch (error: any) {
-    console.error('Error fetching portal news:', error);
+    console.warn('[Melhora Prudente] Erro crítico ao buscar notícias:', error);
     fetchError = true;
     errorDetails = error;
-  }
-
-  if (fetchError) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-red-50 border border-red-100 rounded-3xl p-8 text-center space-y-4">
-          <AlertCircle className="text-red-600 mx-auto" size={48} />
-          <h2 className="text-xl font-black uppercase tracking-tighter text-red-900">Erro ao Carregar Notícias</h2>
-          <p className="text-red-700 text-sm">
-            Não foi possível estabelecer contato com o banco de dados. Por favor, tente novamente mais tarde.
-          </p>
-          {errorDetails && (
-            <div className="p-4 bg-white/80 rounded-xl text-left text-xs font-mono text-red-800 border border-red-100 overflow-x-auto">
-              <p className="font-bold">Message: {errorDetails.message || errorDetails.toString()}</p>
-              {errorDetails.code && <p>Code: {errorDetails.code}</p>}
-              {errorDetails.details && <p>Details: {errorDetails.details}</p>}
-              {errorDetails.hint && <p>Hint: {errorDetails.hint}</p>}
-            </div>
-          )}
-          <Link 
-            href="/"
-            className="inline-block bg-red-600 text-white px-6 py-2.5 rounded-full text-sm font-bold hover:bg-red-700 transition-all"
-          >
-            Tentar Novamente
-          </Link>
-        </div>
-      </div>
-    );
+    allNews = []; // Fallback seguro
   }
 
   // Decompose fetched news items

@@ -217,6 +217,51 @@ function getLocalSettings(): Settings {
   return getStoredData<Settings>('mp_fallback_settings', DEFAULT_SETTINGS);
 }
 
+function mapNewsRowToPost(row: any): Post {
+  if (!row) return row;
+  const catSlug = row.category
+    ? row.category.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-')
+    : 'geral';
+
+  return {
+    id: row.id,
+    title: row.title,
+    subtitle: null,
+    slug: row.slug,
+    excerpt: row.excerpt,
+    content: row.content,
+    cover_image_url: row.cover_image,
+    author_id: row.author_id || 'system',
+    category_id: catSlug,
+    status: row.status === 'published' ? 'published' : 'draft',
+    is_featured: false,
+    is_breaking: false,
+    seo_title: row.title,
+    seo_description: row.excerpt,
+    published_at: row.created_at,
+    created_at: row.created_at,
+    updated_at: row.updated_at || row.created_at,
+    category: {
+      id: catSlug,
+      name: row.category || 'Geral',
+      slug: catSlug,
+      description: null,
+      is_active: true,
+      created_at: row.created_at
+    },
+    author: {
+      id: row.author_id || 'system',
+      full_name: 'Redação',
+      email: 'contato@melhoraprudente.com.br',
+      avatar_url: null,
+      role: 'admin',
+      status: 'active',
+      created_at: row.created_at,
+      updated_at: row.created_at
+    }
+  };
+}
+
 function mapPostToNews(post: any): News {
   if (!post) return post;
   return {
@@ -226,11 +271,11 @@ function mapPostToNews(post: any): News {
     content: post.content,
     excerpt: post.excerpt,
     cover_image: post.cover_image_url || post.cover_image,
-    category: post.category?.name || post.category_name || 'Geral',
+    category: post.category?.name || post.category_name || (typeof post.category === 'string' ? post.category : 'Geral'),
     status: post.status === 'published' ? 'published' : 'draft',
-    author_id: post.author_id,
+    author_id: post.author_id || 'system',
     created_at: post.created_at,
-    updated_at: post.updated_at,
+    updated_at: post.updated_at || post.created_at,
     author: post.author
   };
 }
@@ -318,38 +363,40 @@ export const newsPortalService = {
       
       console.log('Database successfully seeded with initial local news!');
     } catch (err) {
-      console.error('Failed to auto-seed database:', err);
+      console.warn('Failed to auto-seed database:', err);
     }
   },
 
   async getLatestNews(limit = 10) {
     try {
-      let { data, error } = await supabase
+      // 1. Try querying 'posts'
+      const { data, error } = await supabase
         .from('posts')
         .select('*, category:categories(*), author:profiles(*)')
         .eq('status', 'published')
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (error) throw error;
-
-      if (isSupabaseConfigured && (!data || data.length === 0)) {
-        await this.autoSeedDatabase();
-        const { data: reFetched, error: reError } = await supabase
-          .from('posts')
-          .select('*, category:categories(*), author:profiles(*)')
-          .eq('status', 'published')
-          .order('created_at', { ascending: false })
-          .limit(limit);
-          
-        if (!reError && reFetched) {
-          data = reFetched;
-        }
+      if (!error && data && data.length > 0) {
+        return data.map(mapPostToNews);
       }
 
-      return (data || []).map(mapPostToNews);
-    } catch (err) {
-      console.warn('Falling back to local news cache:', err);
+      // 2. Try querying 'news'
+      const { data: newsData, error: newsError } = await supabase
+        .from('news')
+        .select('*, author:profiles(*)')
+        .eq('status', 'published')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (!newsError && newsData && newsData.length > 0) {
+        return newsData.map(row => mapPostToNews(mapNewsRowToPost(row)));
+      }
+
+      // 3. Fallback to local cache
+      const local = getLocalPosts().filter(p => p.status === 'published');
+      return local.slice(0, limit).map(mapPostToNews);
+    } catch (err: any) {
       const local = getLocalPosts().filter(p => p.status === 'published');
       return local.slice(0, limit).map(mapPostToNews);
     }
@@ -357,16 +404,31 @@ export const newsPortalService = {
 
   async getNewsBySlug(slug: string) {
     try {
+      // 1. Try querying 'posts'
       const { data, error } = await supabase
         .from('posts')
         .select('*, category:categories(*), author:profiles(*)')
         .eq('slug', slug)
         .single();
 
-      if (error) throw error;
-      return mapPostToNews(data);
+      if (!error && data) {
+        return mapPostToNews(data);
+      }
+
+      // 2. Try querying 'news'
+      const { data: newsData, error: newsError } = await supabase
+        .from('news')
+        .select('*, author:profiles(*)')
+        .eq('slug', slug)
+        .single();
+
+      if (!newsError && newsData) {
+        return mapPostToNews(mapNewsRowToPost(newsData));
+      }
+
+      const found = getLocalPosts().find(p => p.slug === slug);
+      return found ? mapPostToNews(found) : null;
     } catch (err) {
-      console.warn('Searching local news by slug:', err);
       const found = getLocalPosts().find(p => p.slug === slug);
       return found ? mapPostToNews(found) : null;
     }
@@ -374,6 +436,7 @@ export const newsPortalService = {
 
   async getRelatedNews(category: string, excludeId: string, limit = 3) {
     try {
+      // 1. Try posts
       const { data, error } = await supabase
         .from('posts')
         .select('*, category:categories(*), author:profiles(*)')
@@ -381,14 +444,34 @@ export const newsPortalService = {
         .neq('id', excludeId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (!error && data && data.length > 0) {
+        return data
+          .map(mapPostToNews)
+          .filter(item => item.category?.toLowerCase() === category?.toLowerCase())
+          .slice(0, limit);
+      }
 
-      return (data || [])
+      // 2. Try news
+      const { data: newsData, error: newsError } = await supabase
+        .from('news')
+        .select('*, author:profiles(*)')
+        .eq('status', 'published')
+        .neq('id', excludeId)
+        .order('created_at', { ascending: false });
+
+      if (!newsError && newsData && newsData.length > 0) {
+        return newsData
+          .map(row => mapPostToNews(mapNewsRowToPost(row)))
+          .filter(item => item.category?.toLowerCase() === category?.toLowerCase())
+          .slice(0, limit);
+      }
+
+      return getLocalPosts()
+        .filter(p => p.id !== excludeId && p.status === 'published')
         .map(mapPostToNews)
         .filter(item => item.category?.toLowerCase() === category?.toLowerCase())
         .slice(0, limit);
     } catch (err) {
-      console.warn('Searching local related news:', err);
       return getLocalPosts()
         .filter(p => p.id !== excludeId && p.status === 'published')
         .map(mapPostToNews)
@@ -401,6 +484,7 @@ export const newsPortalService = {
 export const newsService = {
   async getLatestPosts(limit = 10) {
     try {
+      // 1. Try posts
       const { data, error } = await supabase
         .from('posts')
         .select('*, category:categories(*), author:profiles(*)')
@@ -408,16 +492,31 @@ export const newsService = {
         .order('published_at', { ascending: false })
         .limit(limit);
       
-      if (error) throw error;
-      return data as Post[];
+      if (!error && data && data.length > 0) {
+        return data as Post[];
+      }
+
+      // 2. Try news
+      const { data: newsData, error: newsError } = await supabase
+        .from('news')
+        .select('*, author:profiles(*)')
+        .eq('status', 'published')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (!newsError && newsData && newsData.length > 0) {
+        return newsData.map(mapNewsRowToPost);
+      }
+
+      return getLocalPosts().filter(p => p.status === 'published').slice(0, limit);
     } catch (err) {
-      console.warn('Local fallback for getLatestPosts:', err);
       return getLocalPosts().filter(p => p.status === 'published').slice(0, limit);
     }
   },
 
   async getFeaturedPosts() {
     try {
+      // 1. Try posts
       const { data, error } = await supabase
         .from('posts')
         .select('*, category:categories(*), author:profiles(*)')
@@ -425,16 +524,31 @@ export const newsService = {
         .eq('is_featured', true)
         .order('published_at', { ascending: false });
       
-      if (error) throw error;
-      return data as Post[];
+      if (!error && data && data.length > 0) {
+        return data as Post[];
+      }
+
+      // 2. Try news
+      const { data: newsData, error: newsError } = await supabase
+        .from('news')
+        .select('*, author:profiles(*)')
+        .eq('status', 'published')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (!newsError && newsData && newsData.length > 0) {
+        return newsData.map(mapNewsRowToPost);
+      }
+
+      return getLocalPosts().filter(p => p.status === 'published' && p.is_featured);
     } catch (err) {
-      console.warn('Local fallback for getFeaturedPosts:', err);
       return getLocalPosts().filter(p => p.status === 'published' && p.is_featured);
     }
   },
 
   async getBreakingNews(limit = 5) {
     try {
+      // 1. Try posts
       const { data, error } = await supabase
         .from('posts')
         .select('*, category:categories(*), author:profiles(*)')
@@ -443,10 +557,24 @@ export const newsService = {
         .order('published_at', { ascending: false })
         .limit(limit);
       
-      if (error) throw error;
-      return data as Post[];
+      if (!error && data && data.length > 0) {
+        return data as Post[];
+      }
+
+      // 2. Try news
+      const { data: newsData, error: newsError } = await supabase
+        .from('news')
+        .select('*, author:profiles(*)')
+        .eq('status', 'published')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (!newsError && newsData && newsData.length > 0) {
+        return newsData.map(mapNewsRowToPost);
+      }
+
+      return getLocalPosts().filter(p => p.status === 'published' && p.is_breaking).slice(0, limit);
     } catch (err) {
-      console.warn('Local fallback for getBreakingNews:', err);
       return getLocalPosts().filter(p => p.status === 'published' && p.is_breaking).slice(0, limit);
     }
   },
@@ -457,6 +585,7 @@ export const newsService = {
 
   async getPostsByCategory(categorySlug: string, limit = 10) {
     try {
+      // 1. Try posts
       const { data, error } = await supabase
         .from('posts')
         .select('*, category:categories!inner(*), author:profiles(*)')
@@ -465,10 +594,28 @@ export const newsService = {
         .order('published_at', { ascending: false })
         .limit(limit);
       
-      if (error) throw error;
-      return data as Post[];
+      if (!error && data && data.length > 0) {
+        return data as Post[];
+      }
+
+      // 2. Try news
+      const { data: newsData, error: newsError } = await supabase
+        .from('news')
+        .select('*, author:profiles(*)')
+        .eq('status', 'published')
+        .order('created_at', { ascending: false });
+
+      if (!newsError && newsData && newsData.length > 0) {
+        const mapped = newsData.map(mapNewsRowToPost);
+        return mapped
+          .filter(p => p.category?.slug === categorySlug)
+          .slice(0, limit);
+      }
+
+      return getLocalPosts()
+        .filter(p => p.status === 'published' && p.category?.slug === categorySlug)
+        .slice(0, limit);
     } catch (err) {
-      console.warn('Local fallback for getPostsByCategory:', err);
       return getLocalPosts()
         .filter(p => p.status === 'published' && p.category?.slug === categorySlug)
         .slice(0, limit);
@@ -477,16 +624,32 @@ export const newsService = {
 
   async getPostBySlug(slug: string) {
     try {
+      // 1. Try posts
       const { data, error } = await supabase
         .from('posts')
         .select('*, category:categories(*), author:profiles(*)')
         .eq('slug', slug)
         .single();
       
-      if (error) throw error;
-      return data as Post;
+      if (!error && data) {
+        return data as Post;
+      }
+
+      // 2. Try news
+      const { data: newsData, error: newsError } = await supabase
+        .from('news')
+        .select('*, author:profiles(*)')
+        .eq('slug', slug)
+        .single();
+
+      if (!newsError && newsData) {
+        return mapNewsRowToPost(newsData);
+      }
+
+      const found = getLocalPosts().find(p => p.slug === slug);
+      if (!found) throw new Error('Not found');
+      return found;
     } catch (err) {
-      console.warn('Local fallback for getPostBySlug:', err);
       const found = getLocalPosts().find(p => p.slug === slug);
       if (!found) throw new Error('Not found');
       return found;
@@ -495,6 +658,7 @@ export const newsService = {
 
   async getRelatedPosts(categoryId: string, excludePostId: string, limit = 4) {
     try {
+      // 1. Try posts
       const { data, error } = await supabase
         .from('posts')
         .select('*, category:categories(*), author:profiles(*)')
@@ -504,10 +668,29 @@ export const newsService = {
         .order('published_at', { ascending: false })
         .limit(limit);
       
-      if (error) throw error;
-      return data as Post[];
+      if (!error && data && data.length > 0) {
+        return data as Post[];
+      }
+
+      // 2. Try news
+      const { data: newsData, error: newsError } = await supabase
+        .from('news')
+        .select('*, author:profiles(*)')
+        .eq('status', 'published')
+        .neq('id', excludePostId)
+        .order('created_at', { ascending: false });
+
+      if (!newsError && newsData && newsData.length > 0) {
+        const mapped = newsData.map(mapNewsRowToPost);
+        return mapped
+          .filter(p => p.category_id === categoryId)
+          .slice(0, limit);
+      }
+
+      return getLocalPosts()
+        .filter(p => p.status === 'published' && p.category_id === categoryId && p.id !== excludePostId)
+        .slice(0, limit);
     } catch (err) {
-      console.warn('Local fallback for getRelatedPosts:', err);
       return getLocalPosts()
         .filter(p => p.status === 'published' && p.category_id === categoryId && p.id !== excludePostId)
         .slice(0, limit);
