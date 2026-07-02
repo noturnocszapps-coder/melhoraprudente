@@ -10,6 +10,8 @@ import AdSlot from '@/components/AdSlot';
 import { NewsPortalCard } from '@/components/news/NewsPortalCard';
 import LikeButton from '@/components/engagement/LikeButton';
 import CommentSection from '@/components/CommentSection';
+import ViewTracker from '@/components/engagement/ViewTracker';
+import ShareWidget from '@/components/engagement/ShareWidget';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -84,6 +86,7 @@ export default async function NewsDetailPage({ params }: Props) {
 
   return (
     <article className="min-h-screen bg-white pb-20">
+      <ViewTracker newsId={newsItem.id} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -199,14 +202,7 @@ export default async function NewsDetailPage({ params }: Props) {
           <aside className="lg:col-span-4 space-y-8">
             <AdSlot position="sidebar_news_detail" className="min-h-[250px] bg-zinc-50 rounded-[2rem] border border-zinc-100" />
             
-            <div className="bg-zinc-50 p-6 rounded-[2rem] border border-zinc-100/60 space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400">Compartilhar</h4>
-              <div className="flex gap-2">
-                <button className="flex-1 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
-                  <Share2 size={14} /> WhatsApp
-                </button>
-              </div>
-            </div>
+            <ShareWidget newsId={newsItem.id} newsTitle={newsItem.title} newsSlug={newsItem.slug} />
           </aside>
         </div>
       </div>

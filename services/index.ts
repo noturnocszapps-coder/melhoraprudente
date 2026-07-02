@@ -315,7 +315,7 @@ export const newsPortalService = {
     try {
       const { data, error } = await supabase
         .from('news')
-        .select('*, author:profiles(*)')
+        .select('*')
         .eq('status', 'published')
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -341,7 +341,7 @@ export const newsPortalService = {
     try {
       const { data, error } = await supabase
         .from('news')
-        .select('*, author:profiles(*)')
+        .select('*')
         .eq('slug', slug)
         .single();
 
@@ -366,7 +366,7 @@ export const newsPortalService = {
     try {
       const { data, error } = await supabase
         .from('news')
-        .select('*, author:profiles(*)')
+        .select('*')
         .eq('status', 'published')
         .neq('id', excludeId)
         .order('created_at', { ascending: false });
@@ -403,7 +403,7 @@ export const newsService = {
     try {
       const { data, error } = await supabase
         .from('news')
-        .select('*, author:profiles(*)')
+        .select('*')
         .eq('status', 'published')
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -427,7 +427,7 @@ export const newsService = {
     try {
       const { data, error } = await supabase
         .from('news')
-        .select('*, author:profiles(*)')
+        .select('*')
         .eq('status', 'published')
         .order('created_at', { ascending: false })
         .limit(5);
@@ -451,7 +451,7 @@ export const newsService = {
     try {
       const { data, error } = await supabase
         .from('news')
-        .select('*, author:profiles(*)')
+        .select('*')
         .eq('status', 'published')
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -479,7 +479,7 @@ export const newsService = {
     try {
       const { data, error } = await supabase
         .from('news')
-        .select('*, author:profiles(*)')
+        .select('*')
         .eq('status', 'published')
         .order('created_at', { ascending: false });
       
@@ -509,7 +509,7 @@ export const newsService = {
     try {
       const { data, error } = await supabase
         .from('news')
-        .select('*, author:profiles(*)')
+        .select('*')
         .eq('slug', slug)
         .single();
       
@@ -536,7 +536,7 @@ export const newsService = {
     try {
       const { data, error } = await supabase
         .from('news')
-        .select('*, author:profiles(*)')
+        .select('*')
         .eq('status', 'published')
         .neq('id', excludePostId)
         .order('created_at', { ascending: false });
@@ -605,13 +605,26 @@ export const commentService = {
     try {
       const { data, error } = await supabase
         .from('comments')
-        .select('*, user:profiles(*)')
+        .select('*')
         .eq('post_id', postId)
         .eq('status', 'approved')
         .order('created_at', { ascending: true });
       
       if (error) throw error;
-      return data as Comment[];
+      
+      return (data || []).map(comment => ({
+        ...comment,
+        user: comment.user || {
+          id: comment.user_id || 'guest',
+          full_name: 'Usuário Leitor',
+          email: 'leitor@melhoraprudente.com.br',
+          role: 'user',
+          status: 'active',
+          avatar_url: null,
+          created_at: comment.created_at,
+          updated_at: comment.created_at
+        }
+      })) as Comment[];
     } catch (err) {
       console.warn('Local fallback for commentService.getByPost:', err);
       const localComments = getStoredData<Comment[]>('mp_fallback_comments', []);
@@ -797,13 +810,16 @@ export const engagementService = {
     try {
       const { data, error } = await supabase
         .from('news_comments')
-        .select('*, user:profiles(*)')
+        .select('*')
         .eq('news_id', newsId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
       
-      const flatComments = (data || []) as NewsComment[];
+      const flatComments = (data || []).map(comment => ({
+        ...comment,
+        user: comment.user || getLocalProfile(comment.user_id)
+      })) as NewsComment[];
       return this.buildCommentTree(flatComments);
     } catch (err) {
       console.warn('Local fallback for getComments:', err);
@@ -851,11 +867,14 @@ export const engagementService = {
           parent_id: parentId,
           content: content.trim()
         })
-        .select('*, user:profiles(*)')
+        .select('*')
         .single();
 
       if (error) throw error;
-      return data as NewsComment;
+      return {
+        ...data,
+        user: getLocalProfile(userId)
+      } as NewsComment;
     } catch (err) {
       console.warn('Local fallback for createComment:', err);
       const localComments = getStoredData<any[]>('mp_fallback_news_comments', []);
@@ -875,15 +894,132 @@ export const engagementService = {
     }
   },
 
+  // --- VIEWS ---
+  async recordView(newsId: string, sessionId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('news_views')
+        .insert({ news_id: newsId, session_id: sessionId });
+
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.warn('Local fallback for recordView:', err);
+      const views = getStoredData<any[]>('mp_fallback_views', []);
+      const alreadyViewed = views.some(v => v.news_id === newsId && v.session_id === sessionId);
+      if (!alreadyViewed) {
+        views.push({
+          id: `view-${Date.now()}`,
+          news_id: newsId,
+          session_id: sessionId,
+          created_at: new Date().toISOString()
+        });
+        setStoredData('mp_fallback_views', views);
+      }
+      return true;
+    }
+  },
+
+  async getViewsCount(newsId: string): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('news_views')
+        .select('*', { count: 'exact', head: true })
+        .eq('news_id', newsId);
+
+      if (error) throw error;
+      return count || 0;
+    } catch (err) {
+      console.warn('Local fallback for getViewsCount:', err);
+      const views = getStoredData<any[]>('mp_fallback_views', []);
+      return views.filter(v => v.news_id === newsId).length;
+    }
+  },
+
+  // --- SHARES ---
+  async recordShare(newsId: string, platform: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('news_shares')
+        .insert({ news_id: newsId, platform });
+
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.warn('Local fallback for recordShare:', err);
+      const shares = getStoredData<any[]>('mp_fallback_shares', []);
+      shares.push({
+        id: `share-${Date.now()}`,
+        news_id: newsId,
+        platform,
+        created_at: new Date().toISOString()
+      });
+      setStoredData('mp_fallback_shares', shares);
+      return true;
+    }
+  },
+
+  async getSharesCount(newsId: string): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('news_shares')
+        .select('*', { count: 'exact', head: true })
+        .eq('news_id', newsId);
+
+      if (error) throw error;
+      return count || 0;
+    } catch (err) {
+      console.warn('Local fallback for getSharesCount:', err);
+      const shares = getStoredData<any[]>('mp_fallback_shares', []);
+      return shares.filter(s => s.news_id === newsId).length;
+    }
+  },
+
   // --- STATS & METRICS (Section 6 & 7) ---
   async getEngagementMetrics() {
-    try {
+    let likesCount = 0;
+    let commentsCount = 0;
+    let viewsCount = 0;
+    let sharesCount = 0;
+    let loadedFromDb = false;
+
+    if (isSupabaseConfigured) {
+      try {
+        const [likesRes, commentsRes, viewsRes, sharesRes] = await Promise.all([
+          supabase.from('news_likes').select('*', { count: 'exact', head: true }),
+          supabase.from('news_comments').select('*', { count: 'exact', head: true }),
+          supabase.from('news_views').select('*', { count: 'exact', head: true }),
+          supabase.from('news_shares').select('*', { count: 'exact', head: true }),
+        ]);
+
+        if (!likesRes.error) likesCount = likesRes.count || 0;
+        if (!commentsRes.error) commentsCount = commentsRes.count || 0;
+        if (!viewsRes.error) viewsCount = viewsRes.count || 0;
+        if (!sharesRes.error) sharesCount = sharesRes.count || 0;
+        loadedFromDb = true;
+      } catch (err) {
+        console.warn('Error fetching engagement metrics from Supabase:', err);
+      }
+    }
+
+    if (!loadedFromDb) {
       const likes = getStoredData<NewsLike[]>('mp_fallback_likes', []);
       const comments = getStoredData<NewsComment[]>('mp_fallback_news_comments', []);
-      return { likes, comments };
-    } catch {
-      return { likes: [], comments: [] };
+      const views = getStoredData<any[]>('mp_fallback_views', []);
+      const shares = getStoredData<any[]>('mp_fallback_shares', []);
+      
+      likesCount = likes.length;
+      commentsCount = comments.length;
+      viewsCount = views.length;
+      sharesCount = shares.length;
     }
+
+    return {
+      likesCount,
+      commentsCount,
+      viewsCount,
+      sharesCount
+    };
   },
 
   async getActiveUsersRanking(): Promise<{ profile: any; score: number; likesCount: number; commentsCount: number }[]> {
@@ -921,24 +1057,37 @@ export const engagementService = {
     }
   },
 
-  async getTrendingNews(limit = 5): Promise<(News & { likesCount: number; commentsCount: number; score: number })[]> {
+  async getTrendingNews(limit = 5): Promise<(News & { viewsCount: number; likesCount: number; commentsCount: number; sharesCount: number; score: number })[]> {
     try {
       const newsList = await newsPortalService.getLatestNews(100);
       
       let likesList: any[] = [];
       let commentsList: any[] = [];
+      let viewsList: any[] = [];
+      let sharesList: any[] = [];
       let loadedFromDb = false;
 
       if (isSupabaseConfigured) {
         try {
           const { data: dbLikes, error: likesErr } = await supabase.from('news_likes').select('*');
           const { data: dbComments, error: commentsErr } = await supabase.from('news_comments').select('*');
+          const { data: dbViews, error: viewsErr } = await supabase.from('news_views').select('*');
+          const { data: dbShares, error: sharesErr } = await supabase.from('news_shares').select('*');
+          
           if (!likesErr && dbLikes) {
             likesList = dbLikes;
             loadedFromDb = true;
           }
           if (!commentsErr && dbComments) {
             commentsList = dbComments;
+            loadedFromDb = true;
+          }
+          if (!viewsErr && dbViews) {
+            viewsList = dbViews;
+            loadedFromDb = true;
+          }
+          if (!sharesErr && dbShares) {
+            sharesList = dbShares;
             loadedFromDb = true;
           }
         } catch (dbErr) {
@@ -949,24 +1098,30 @@ export const engagementService = {
       if (!loadedFromDb) {
         likesList = getStoredData<NewsLike[]>('mp_fallback_likes', []);
         commentsList = getStoredData<any[]>('mp_fallback_news_comments', []);
+        viewsList = getStoredData<any[]>('mp_fallback_views', []);
+        sharesList = getStoredData<any[]>('mp_fallback_shares', []);
       }
 
       const newsWithEngagement = newsList.map(news => {
         const likesCount = likesList.filter(l => l.news_id === news.id).length;
         const commentsCount = commentsList.filter(c => c.news_id === news.id).length;
+        const viewsCount = viewsList.filter(v => v.news_id === news.id).length;
+        const sharesCount = sharesList.filter(s => s.news_id === news.id).length;
         
         const ageInHours = (Date.now() - new Date(news.created_at).getTime()) / 3600000;
         
         // Recency Score: maximum 48 points for fresh posts (under 48h), sliding down linearly to 0
         const recencyScore = ageInHours <= 48 ? Math.max(0, 48 - ageInHours) : 0;
         
-        // Exact formula: score = (likes * 3) + (comments * 5) + recency (up to 48h)
-        const score = (likesCount * 3) + (commentsCount * 5) + recencyScore;
+        // Advanced formula: score = (views * 1) + (likes * 4) + (comments * 10) + (shares * 6) + recencyScore
+        const score = (viewsCount * 1) + (likesCount * 4) + (commentsCount * 10) + (sharesCount * 6) + recencyScore;
 
         return {
           ...news,
+          viewsCount,
           likesCount,
           commentsCount,
+          sharesCount,
           score
         };
       });
@@ -977,5 +1132,6 @@ export const engagementService = {
       return [];
     }
   }
+
 };
 

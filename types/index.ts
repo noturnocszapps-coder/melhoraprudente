@@ -121,3 +121,18 @@ export interface NewsComment {
   replies?: NewsComment[];
 }
 
+export interface NewsView {
+  id: string;
+  news_id: string;
+  session_id: string;
+  created_at: string;
+}
+
+export interface NewsShare {
+  id: string;
+  news_id: string;
+  platform: string;
+  created_at: string;
+}
+
+

@@ -154,3 +154,60 @@ ALTER TABLE news ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Published news are viewable by everyone" ON news FOR SELECT USING (status = 'published');
 CREATE POLICY "Admins and Editors have full access to news" ON news FOR ALL USING (get_role(auth.uid()) IN ('admin', 'editor'));
 
+
+-- 9. News Engagement Tables
+
+-- news_views
+CREATE TABLE IF NOT EXISTS news_views (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  news_id UUID REFERENCES news(id) ON DELETE CASCADE NOT NULL,
+  session_id TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- news_likes
+CREATE TABLE IF NOT EXISTS news_likes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  news_id UUID REFERENCES news(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  UNIQUE(news_id, user_id)
+);
+
+-- news_comments
+CREATE TABLE IF NOT EXISTS news_comments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  news_id UUID REFERENCES news(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  parent_id UUID REFERENCES news_comments(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- news_shares
+CREATE TABLE IF NOT EXISTS news_shares (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  news_id UUID REFERENCES news(id) ON DELETE CASCADE NOT NULL,
+  platform TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- RLS and Policies for engagement tables
+ALTER TABLE news_views ENABLE ROW LEVEL SECURITY;
+ALTER TABLE news_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE news_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE news_shares ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can view news_views" ON news_views FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert news_views" ON news_views FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Anyone can view news_likes" ON news_likes FOR SELECT USING (true);
+CREATE POLICY "Authenticated users can toggle news_likes" ON news_likes FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Anyone can view news_comments" ON news_comments FOR SELECT USING (true);
+CREATE POLICY "Authenticated users can manage news_comments" ON news_comments FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Anyone can view news_shares" ON news_shares FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert news_shares" ON news_shares FOR INSERT WITH CHECK (true);
+
+
