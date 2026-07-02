@@ -20,8 +20,8 @@ export default function NewsList() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('posts')
-        .select('*, category:categories(name), author:profiles(full_name)')
+        .from('news')
+        .select('*, author:profiles(full_name)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -31,7 +31,7 @@ export default function NewsList() {
         title: post.title,
         slug: post.slug,
         excerpt: post.excerpt,
-        category: post.category?.name || 'Geral',
+        category: post.category || 'Geral',
         status: post.status === 'published' ? 'published' : 'draft',
         author: post.author,
         created_at: post.created_at
@@ -74,7 +74,7 @@ export default function NewsList() {
     if (!confirm('Tem certeza que deseja excluir esta notícia?')) return;
 
     try {
-      const { error } = await supabase.from('posts').delete().eq('id', id);
+      const { error } = await supabase.from('news').delete().eq('id', id);
       if (error) throw error;
       setNewsList(prev => prev.filter(n => n.id !== id));
     } catch (error: any) {

@@ -48,39 +48,15 @@ export default function NewNewsPage() {
     
     setLoading(true);
     try {
-      // Find category by name
-      let { data: catData, error: catError } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('name', formData.category)
-        .maybeSingle();
-
-      let categoryId = catData?.id;
-
-      if (!categoryId) {
-        // Create a new category if not found
-        const newSlug = formData.category.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w ]+/g, '').replace(/ +/g, '-');
-        const { data: newCat, error: newCatErr } = await supabase
-          .from('categories')
-          .insert([{ name: formData.category, slug: newSlug }])
-          .select('id')
-          .single();
-        
-        if (newCatErr) throw newCatErr;
-        if (newCat) {
-          categoryId = newCat.id;
-        }
-      }
-
       const { error } = await supabase
-        .from('posts')
+        .from('news')
         .insert([{
           title: formData.title,
           slug: formData.slug,
           content: formData.content,
           excerpt: formData.excerpt || null,
-          cover_image_url: formData.cover_image || null,
-          category_id: categoryId || null,
+          cover_image: formData.cover_image || null,
+          category: formData.category,
           status: formData.status === 'published' ? 'published' : 'draft',
           author_id: user.id
         }]);

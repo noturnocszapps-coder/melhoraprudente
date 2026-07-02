@@ -30,8 +30,8 @@ export default function EditNewsPage() {
     const fetchNewsItem = async () => {
       try {
         const { data, error } = await supabase
-          .from('posts')
-          .select('*, category:categories(name)')
+          .from('news')
+          .select('*')
           .eq('id', id)
           .single();
 
@@ -43,8 +43,8 @@ export default function EditNewsPage() {
             slug: data.slug || '',
             content: data.content || '',
             excerpt: data.excerpt || '',
-            cover_image: data.cover_image_url || '',
-            category: data.category?.name || 'Geral',
+            cover_image: data.cover_image || '',
+            category: data.category || 'Geral',
             status: data.status === 'published' ? 'published' : 'draft'
           });
         }
@@ -107,39 +107,15 @@ export default function EditNewsPage() {
     
     setSaving(true);
     try {
-      // Find category by name
-      let { data: catData, error: catError } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('name', formData.category)
-        .maybeSingle();
-
-      let categoryId = catData?.id;
-
-      if (!categoryId) {
-        // Create a new category if not found
-        const newSlug = formData.category.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w ]+/g, '').replace(/ +/g, '-');
-        const { data: newCat, error: newCatErr } = await supabase
-          .from('categories')
-          .insert([{ name: formData.category, slug: newSlug }])
-          .select('id')
-          .single();
-        
-        if (newCatErr) throw newCatErr;
-        if (newCat) {
-          categoryId = newCat.id;
-        }
-      }
-
       const { error } = await supabase
-        .from('posts')
+        .from('news')
         .update({
           title: formData.title,
           slug: formData.slug,
           content: formData.content,
           excerpt: formData.excerpt || null,
-          cover_image_url: formData.cover_image || null,
-          category_id: categoryId || null,
+          cover_image: formData.cover_image || null,
+          category: formData.category,
           status: formData.status === 'published' ? 'published' : 'draft',
           updated_at: new Date().toISOString()
         })

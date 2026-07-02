@@ -18,18 +18,33 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [posts, comments, users, categories] = await Promise.all([
-          supabase.from('posts').select('id', { count: 'exact', head: true }),
-          supabase.from('comments').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabase.from('profiles').select('id', { count: 'exact', head: true }),
-          supabase.from('categories').select('id', { count: 'exact', head: true })
+        const safeCount = async (table: string, statusFilter?: { field: string, value: any }) => {
+          try {
+            let q = supabase.from(table).select('id', { count: 'exact', head: true });
+            if (statusFilter) {
+              q = q.eq(statusFilter.field, statusFilter.value);
+            }
+            const { count, error } = await q;
+            if (error) throw error;
+            return count || 0;
+          } catch (e) {
+            console.warn(`Could not fetch count for ${table}:`, e);
+            return 0;
+          }
+        };
+
+        const [postsCount, commentsCount, usersCount, categoriesCount] = await Promise.all([
+          safeCount('news'),
+          safeCount('comments', { field: 'status', value: 'pending' }),
+          safeCount('profiles'),
+          safeCount('categories')
         ]);
 
         setStats({
-          totalPosts: posts.count || 0,
-          pendingComments: comments.count || 0,
-          totalUsers: users.count || 0,
-          totalCategories: categories.count || 0
+          totalPosts: postsCount,
+          pendingComments: commentsCount,
+          totalUsers: usersCount,
+          totalCategories: categoriesCount
         });
       } catch (error) {
         console.error('Error fetching stats:', error);

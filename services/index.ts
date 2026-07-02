@@ -284,66 +284,13 @@ export const newsPortalService = {
   async autoSeedDatabase() {
     if (!isSupabaseConfigured) return;
     try {
-      // 1. Check and seed categories
-      const { data: existingCats } = await supabase.from('categories').select('*');
-      const categoriesMap: { [key: string]: string } = {};
+      // Seed ONLY 'news' table for compatibility
+      const { data: existingNews, error: newsCheckErr } = await supabase
+        .from('news')
+        .select('id')
+        .limit(1);
 
-      if (existingCats && existingCats.length > 0) {
-        existingCats.forEach(cat => {
-          categoriesMap[cat.slug] = cat.id;
-        });
-      } else {
-        const catsToInsert = DEFAULT_CATEGORIES.map(cat => ({
-          name: cat.name,
-          slug: cat.slug,
-          description: cat.description || '',
-          is_active: true
-        }));
-
-        const { data: insertedCats, error: catErr } = await supabase
-          .from('categories')
-          .insert(catsToInsert)
-          .select('*');
-
-        if (catErr) throw catErr;
-
-        if (insertedCats) {
-          insertedCats.forEach(cat => {
-            categoriesMap[cat.slug] = cat.id;
-          });
-        }
-      }
-
-      // 2. Insert posts
-      const postsToInsert = DEFAULT_POSTS.map(post => {
-        const catSlug = post.category?.slug || 'geral';
-        const categoryId = categoriesMap[catSlug] || null;
-
-        return {
-          title: post.title,
-          subtitle: post.subtitle || '',
-          slug: post.slug,
-          excerpt: post.excerpt || '',
-          content: post.content,
-          cover_image_url: post.cover_image_url || null,
-          category_id: categoryId,
-          status: 'published',
-          is_featured: post.is_featured || false,
-          is_breaking: post.is_breaking || false,
-          published_at: post.published_at || new Date().toISOString(),
-          created_at: post.created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-      });
-
-      const { error: postErr } = await supabase
-        .from('posts')
-        .insert(postsToInsert);
-
-      if (postErr) throw postErr;
-
-      // 3. Also populate the 'news' table for maximum compatibility with Etapa 1
-      try {
+      if (!newsCheckErr && (!existingNews || existingNews.length === 0)) {
         const newsToInsert = DEFAULT_POSTS.map(post => ({
           title: post.title,
           slug: post.slug,
@@ -357,11 +304,8 @@ export const newsPortalService = {
         }));
 
         await supabase.from('news').insert(newsToInsert);
-      } catch (newsErr) {
-        console.warn('Could not seed "news" table:', newsErr);
+        console.log('Database successfully seeded with initial local news!');
       }
-      
-      console.log('Database successfully seeded with initial local news!');
     } catch (err) {
       console.warn('Failed to auto-seed database:', err);
     }
@@ -369,31 +313,22 @@ export const newsPortalService = {
 
   async getLatestNews(limit = 10) {
     try {
-      // 1. Try querying 'posts'
       const { data, error } = await supabase
-        .from('posts')
-        .select('*, category:categories(*), author:profiles(*)')
-        .eq('status', 'published')
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (!error && data && data.length > 0) {
-        return data.map(mapPostToNews);
-      }
-
-      // 2. Try querying 'news'
-      const { data: newsData, error: newsError } = await supabase
         .from('news')
         .select('*, author:profiles(*)')
         .eq('status', 'published')
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (!newsError && newsData && newsData.length > 0) {
-        return newsData.map(row => mapPostToNews(mapNewsRowToPost(row)));
+      if (error) {
+        console.warn('Supabase error in getLatestNews:', error);
+        throw error;
       }
 
-      // 3. Fallback to local cache
+      if (data && data.length > 0) {
+        return data.map(mapPostToNews);
+      }
+
       const local = getLocalPosts().filter(p => p.status === 'published');
       return local.slice(0, limit).map(mapPostToNews);
     } catch (err: any) {
@@ -404,26 +339,19 @@ export const newsPortalService = {
 
   async getNewsBySlug(slug: string) {
     try {
-      // 1. Try querying 'posts'
       const { data, error } = await supabase
-        .from('posts')
-        .select('*, category:categories(*), author:profiles(*)')
-        .eq('slug', slug)
-        .single();
-
-      if (!error && data) {
-        return mapPostToNews(data);
-      }
-
-      // 2. Try querying 'news'
-      const { data: newsData, error: newsError } = await supabase
         .from('news')
         .select('*, author:profiles(*)')
         .eq('slug', slug)
         .single();
 
-      if (!newsError && newsData) {
-        return mapPostToNews(mapNewsRowToPost(newsData));
+      if (error) {
+        console.warn('Supabase error in getNewsBySlug:', error);
+        throw error;
+      }
+
+      if (data) {
+        return mapPostToNews(data);
       }
 
       const found = getLocalPosts().find(p => p.slug === slug);
@@ -436,32 +364,21 @@ export const newsPortalService = {
 
   async getRelatedNews(category: string, excludeId: string, limit = 3) {
     try {
-      // 1. Try posts
       const { data, error } = await supabase
-        .from('posts')
-        .select('*, category:categories(*), author:profiles(*)')
-        .eq('status', 'published')
-        .neq('id', excludeId)
-        .order('created_at', { ascending: false });
-
-      if (!error && data && data.length > 0) {
-        return data
-          .map(mapPostToNews)
-          .filter(item => item.category?.toLowerCase() === category?.toLowerCase())
-          .slice(0, limit);
-      }
-
-      // 2. Try news
-      const { data: newsData, error: newsError } = await supabase
         .from('news')
         .select('*, author:profiles(*)')
         .eq('status', 'published')
         .neq('id', excludeId)
         .order('created_at', { ascending: false });
 
-      if (!newsError && newsData && newsData.length > 0) {
-        return newsData
-          .map(row => mapPostToNews(mapNewsRowToPost(row)))
+      if (error) {
+        console.warn('Supabase error in getRelatedNews:', error);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        return data
+          .map(mapPostToNews)
           .filter(item => item.category?.toLowerCase() === category?.toLowerCase())
           .slice(0, limit);
       }
@@ -484,28 +401,20 @@ export const newsPortalService = {
 export const newsService = {
   async getLatestPosts(limit = 10) {
     try {
-      // 1. Try posts
       const { data, error } = await supabase
-        .from('posts')
-        .select('*, category:categories(*), author:profiles(*)')
-        .eq('status', 'published')
-        .order('published_at', { ascending: false })
-        .limit(limit);
-      
-      if (!error && data && data.length > 0) {
-        return data as Post[];
-      }
-
-      // 2. Try news
-      const { data: newsData, error: newsError } = await supabase
         .from('news')
         .select('*, author:profiles(*)')
         .eq('status', 'published')
         .order('created_at', { ascending: false })
         .limit(limit);
+      
+      if (error) {
+        console.warn('Supabase error in getLatestPosts:', error);
+        throw error;
+      }
 
-      if (!newsError && newsData && newsData.length > 0) {
-        return newsData.map(mapNewsRowToPost);
+      if (data && data.length > 0) {
+        return data.map(mapNewsRowToPost);
       }
 
       return getLocalPosts().filter(p => p.status === 'published').slice(0, limit);
@@ -516,28 +425,20 @@ export const newsService = {
 
   async getFeaturedPosts() {
     try {
-      // 1. Try posts
       const { data, error } = await supabase
-        .from('posts')
-        .select('*, category:categories(*), author:profiles(*)')
-        .eq('status', 'published')
-        .eq('is_featured', true)
-        .order('published_at', { ascending: false });
-      
-      if (!error && data && data.length > 0) {
-        return data as Post[];
-      }
-
-      // 2. Try news
-      const { data: newsData, error: newsError } = await supabase
         .from('news')
         .select('*, author:profiles(*)')
         .eq('status', 'published')
         .order('created_at', { ascending: false })
         .limit(5);
+      
+      if (error) {
+        console.warn('Supabase error in getFeaturedPosts:', error);
+        throw error;
+      }
 
-      if (!newsError && newsData && newsData.length > 0) {
-        return newsData.map(mapNewsRowToPost);
+      if (data && data.length > 0) {
+        return data.map(mapNewsRowToPost);
       }
 
       return getLocalPosts().filter(p => p.status === 'published' && p.is_featured);
@@ -548,29 +449,20 @@ export const newsService = {
 
   async getBreakingNews(limit = 5) {
     try {
-      // 1. Try posts
       const { data, error } = await supabase
-        .from('posts')
-        .select('*, category:categories(*), author:profiles(*)')
-        .eq('status', 'published')
-        .eq('is_breaking', true)
-        .order('published_at', { ascending: false })
-        .limit(limit);
-      
-      if (!error && data && data.length > 0) {
-        return data as Post[];
-      }
-
-      // 2. Try news
-      const { data: newsData, error: newsError } = await supabase
         .from('news')
         .select('*, author:profiles(*)')
         .eq('status', 'published')
         .order('created_at', { ascending: false })
         .limit(limit);
+      
+      if (error) {
+        console.warn('Supabase error in getBreakingNews:', error);
+        throw error;
+      }
 
-      if (!newsError && newsData && newsData.length > 0) {
-        return newsData.map(mapNewsRowToPost);
+      if (data && data.length > 0) {
+        return data.map(mapNewsRowToPost);
       }
 
       return getLocalPosts().filter(p => p.status === 'published' && p.is_breaking).slice(0, limit);
@@ -585,28 +477,19 @@ export const newsService = {
 
   async getPostsByCategory(categorySlug: string, limit = 10) {
     try {
-      // 1. Try posts
       const { data, error } = await supabase
-        .from('posts')
-        .select('*, category:categories!inner(*), author:profiles(*)')
-        .eq('status', 'published')
-        .eq('category.slug', categorySlug)
-        .order('published_at', { ascending: false })
-        .limit(limit);
-      
-      if (!error && data && data.length > 0) {
-        return data as Post[];
-      }
-
-      // 2. Try news
-      const { data: newsData, error: newsError } = await supabase
         .from('news')
         .select('*, author:profiles(*)')
         .eq('status', 'published')
         .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.warn('Supabase error in getPostsByCategory:', error);
+        throw error;
+      }
 
-      if (!newsError && newsData && newsData.length > 0) {
-        const mapped = newsData.map(mapNewsRowToPost);
+      if (data && data.length > 0) {
+        const mapped = data.map(mapNewsRowToPost);
         return mapped
           .filter(p => p.category?.slug === categorySlug)
           .slice(0, limit);
@@ -624,26 +507,19 @@ export const newsService = {
 
   async getPostBySlug(slug: string) {
     try {
-      // 1. Try posts
       const { data, error } = await supabase
-        .from('posts')
-        .select('*, category:categories(*), author:profiles(*)')
-        .eq('slug', slug)
-        .single();
-      
-      if (!error && data) {
-        return data as Post;
-      }
-
-      // 2. Try news
-      const { data: newsData, error: newsError } = await supabase
         .from('news')
         .select('*, author:profiles(*)')
         .eq('slug', slug)
         .single();
+      
+      if (error) {
+        console.warn('Supabase error in getPostBySlug:', error);
+        throw error;
+      }
 
-      if (!newsError && newsData) {
-        return mapNewsRowToPost(newsData);
+      if (data) {
+        return mapNewsRowToPost(data);
       }
 
       const found = getLocalPosts().find(p => p.slug === slug);
@@ -658,30 +534,20 @@ export const newsService = {
 
   async getRelatedPosts(categoryId: string, excludePostId: string, limit = 4) {
     try {
-      // 1. Try posts
       const { data, error } = await supabase
-        .from('posts')
-        .select('*, category:categories(*), author:profiles(*)')
-        .eq('status', 'published')
-        .eq('category_id', categoryId)
-        .neq('id', excludePostId)
-        .order('published_at', { ascending: false })
-        .limit(limit);
-      
-      if (!error && data && data.length > 0) {
-        return data as Post[];
-      }
-
-      // 2. Try news
-      const { data: newsData, error: newsError } = await supabase
         .from('news')
         .select('*, author:profiles(*)')
         .eq('status', 'published')
         .neq('id', excludePostId)
         .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.warn('Supabase error in getRelatedPosts:', error);
+        throw error;
+      }
 
-      if (!newsError && newsData && newsData.length > 0) {
-        const mapped = newsData.map(mapNewsRowToPost);
+      if (data && data.length > 0) {
+        const mapped = data.map(mapNewsRowToPost);
         return mapped
           .filter(p => p.category_id === categoryId)
           .slice(0, limit);

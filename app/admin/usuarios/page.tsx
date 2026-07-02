@@ -93,22 +93,38 @@ export default function AdminUsers() {
       if (profilesError) throw profilesError;
 
       // 2. Fetch comments count
-      const { data: comments, error: commentsError } = await supabase
-        .from('comments')
-        .select('id, user_id');
+      let comments: any[] = [];
+      try {
+        const { data, error } = await supabase
+          .from('comments')
+          .select('id, user_id');
+        if (!error && data) {
+          comments = data;
+        }
+      } catch (e) {
+        console.warn('Could not fetch comments count, using fallback', e);
+      }
       
-      // 3. Fetch posts count
-      const { data: posts, error: postsError } = await supabase
-        .from('posts')
-        .select('id, author_id');
+      // 3. Fetch news count
+      let newsItems: any[] = [];
+      try {
+        const { data, error } = await supabase
+          .from('news')
+          .select('id, author_id');
+        if (!error && data) {
+          newsItems = data;
+        }
+      } catch (e) {
+        console.warn('Could not fetch news count, using fallback', e);
+      }
 
       const countsComments: Record<string, number> = {};
-      comments?.forEach(c => {
+      comments.forEach(c => {
         countsComments[c.user_id] = (countsComments[c.user_id] || 0) + 1;
       });
 
       const countsPosts: Record<string, number> = {};
-      posts?.forEach(p => {
+      newsItems.forEach(p => {
         if (p.author_id) {
           countsPosts[p.author_id] = (countsPosts[p.author_id] || 0) + 1;
         }
