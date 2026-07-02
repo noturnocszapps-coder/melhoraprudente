@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import { Ad } from '@/types';
+import { adService } from '@/services';
 
 interface AdSlotProps {
   position: string;
@@ -16,30 +16,16 @@ export default function AdSlot({ position, className }: AdSlotProps) {
   useEffect(() => {
     const fetchAd = async () => {
       try {
-        const { data, error } = await supabase
-          .from('ads')
-          .select('*')
-          .eq('slot', position)
-          .eq('is_active', true);
-          
-        if (error) throw error;
+        const validAds = await adService.getActiveAdsBySlot(position);
         
-        if (data && data.length > 0) {
-          // Filter by date if applicable
-          const now = new Date().toISOString();
-          const validAds = data.filter(a => {
-            const startOk = !a.starts_at || a.starts_at <= now;
-            const endOk = !a.ends_at || a.ends_at >= now;
-            return startOk && endOk;
-          });
-
-          if (validAds.length > 0) {
-            const randomIndex = Math.floor(Math.random() * validAds.length);
-            setAd(validAds[randomIndex]);
-          }
+        if (validAds && validAds.length > 0) {
+          const randomIndex = Math.floor(Math.random() * validAds.length);
+          setAd(validAds[randomIndex]);
+        } else {
+          setAd(null);
         }
       } catch (error) {
-        console.error(`Error fetching ad for ${position}:`, error);
+        console.warn(`Error fetching ad for ${position}:`, error);
       } finally {
         setLoading(false);
       }
