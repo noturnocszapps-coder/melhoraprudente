@@ -4,6 +4,7 @@ import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { AuthProvider } from "@/hooks/useAuth";
+import { BlockedUserGuard } from "@/components/auth/BlockedUserGuard";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,13 +22,15 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={`${inter.className} text-zinc-900 antialiased selection:bg-red-100 selection:text-red-900`}>
         <AuthProvider>
-          <div className="flex flex-col min-h-screen">
-            <Header />
-            <main className="flex-1">
-              {children}
-            </main>
-            <Footer />
-          </div>
+          <BlockedUserGuard>
+            <div className="flex flex-col min-h-screen">
+              <Header />
+              <main className="flex-1">
+                {children}
+              </main>
+              <Footer />
+            </div>
+          </BlockedUserGuard>
         </AuthProvider>
       </body>
     </html>

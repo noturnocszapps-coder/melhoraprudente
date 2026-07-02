@@ -8,6 +8,7 @@ CREATE TABLE profiles (
   email TEXT UNIQUE NOT NULL,
   avatar_url TEXT,
   role TEXT DEFAULT 'user' CHECK (role IN ('admin', 'editor', 'user')),
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'blocked')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
@@ -123,8 +124,8 @@ CREATE POLICY "Admins have full access to everything" ON profiles FOR ALL USING 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, full_name, role)
-  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', 'user');
+  INSERT INTO public.profiles (id, email, full_name, role, status)
+  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', 'user', 'active');
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -132,3 +133,24 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- 8. News Table (Etapa 1)
+CREATE TABLE news (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  content TEXT NOT NULL,
+  excerpt TEXT,
+  cover_image TEXT,
+  category TEXT NOT NULL,
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+  author_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- RLS and Policies for News
+ALTER TABLE news ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Published news are viewable by everyone" ON news FOR SELECT USING (status = 'published');
+CREATE POLICY "Admins and Editors have full access to news" ON news FOR ALL USING (get_role(auth.uid()) IN ('admin', 'editor'));
+

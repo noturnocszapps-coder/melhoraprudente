@@ -11,6 +11,8 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   isEditor: boolean;
+  isBlocked: boolean;
+  isSuspended: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -20,6 +22,8 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isAdmin: false,
   isEditor: false,
+  isBlocked: false,
+  isSuspended: false,
   signOut: async () => {},
 });
 
@@ -94,8 +98,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     profile,
     loading,
-    isAdmin: profile?.role === 'admin',
-    isEditor: profile?.role === 'editor' || profile?.role === 'admin',
+    isAdmin: profile?.role === 'admin' && profile?.status !== 'blocked' && profile?.status !== 'suspended',
+    isEditor: (profile?.role === 'editor' || profile?.role === 'admin') && profile?.status !== 'blocked' && profile?.status !== 'suspended',
+    isBlocked: profile?.status === 'blocked',
+    isSuspended: profile?.status === 'suspended',
     signOut,
   };
 

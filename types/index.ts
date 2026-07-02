@@ -1,4 +1,5 @@
 export type Role = 'admin' | 'editor' | 'user';
+export type UserStatus = 'active' | 'suspended' | 'blocked';
 
 export interface Profile {
   id: string;
@@ -6,6 +7,7 @@ export interface Profile {
   email: string;
   avatar_url: string | null;
   role: Role;
+  status: UserStatus;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +47,26 @@ export interface Post {
   category?: Category;
 }
 
+export type NewsStatus = 'draft' | 'published';
+
+export interface News {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  excerpt: string | null;
+  cover_image: string | null;
+  category: string;
+  status: NewsStatus;
+  author_id: string;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  author?: Profile;
+}
+
+
 export interface Comment {
   id: string;
   post_id: string;
@@ -80,3 +102,22 @@ export interface Settings {
   primary_color: string;
   secondary_color: string;
 }
+
+export interface NewsLike {
+  id: string;
+  news_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface NewsComment {
+  id: string;
+  news_id: string;
+  user_id: string;
+  parent_id: string | null;
+  content: string;
+  created_at: string;
+  user?: Profile;
+  replies?: NewsComment[];
+}
+
