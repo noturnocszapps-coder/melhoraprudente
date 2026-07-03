@@ -36,6 +36,16 @@ export interface Post {
   status: PostStatus;
   is_featured: boolean;
   is_breaking: boolean;
+  region?: string | null;
+  city_slug?: string | null;
+  city_name?: string | null;
+  ai_classification?: string | null;
+  ai_relevance_score?: number | null;
+  ai_viral_potential_score?: number | null;
+  ai_regional_impact_score?: number | null;
+  ai_summary?: string | null;
+  ai_seo_title?: string | null;
+  ai_seo_description?: string | null;
   seo_title: string | null;
   seo_description: string | null;
   published_at: string | null;
@@ -62,6 +72,32 @@ export interface News {
   created_at: string;
   updated_at: string;
   
+  // Advanced features
+  is_breaking?: boolean;
+  is_featured?: boolean;
+  region?: string | null; // e.g., 'BR', 'SP', 'RJ', 'PR' etc.
+  subtitle?: string | null;
+  
+  // Multi-city tenant fields
+  city_slug?: string | null;
+  city_name?: string | null;
+  
+  // AI Editorial fields
+  ai_classification?: string | null;
+  ai_relevance_score?: number | null;
+  ai_viral_potential_score?: number | null;
+  ai_regional_impact_score?: number | null;
+  ai_summary?: string | null;
+  ai_seo_title?: string | null;
+  ai_seo_description?: string | null;
+  
+  // Computed fields
+  viewsCount?: number;
+  likesCount?: number;
+  commentsCount?: number;
+  sharesCount?: number;
+  score?: number;
+
   // Joined fields
   author?: Profile;
 }

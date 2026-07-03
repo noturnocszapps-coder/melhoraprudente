@@ -128,7 +128,7 @@ export default async function NewsDetailPage({ params }: Props) {
                 <p className="text-zinc-500 text-xs">Melhora Prudente</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-sm text-zinc-500 font-medium">
+            <div className="flex items-center gap-2 text-sm text-zinc-500 font-medium" suppressHydrationWarning>
               <Calendar size={18} className="text-red-600" />
               {formatDate(post.published_at || post.created_at)}
             </div>

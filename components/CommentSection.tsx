@@ -135,7 +135,7 @@ export default function CommentSection({ newsId, postId }: CommentSectionProps) 
                 </span>
               )}
 
-              <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider ml-auto">
+              <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider ml-auto" suppressHydrationWarning>
                 {formatDate(comment.created_at)}
               </span>
             </div>

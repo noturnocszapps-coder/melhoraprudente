@@ -29,7 +29,11 @@ const DEFAULT_CATEGORIES: Category[] = [
   { id: 'cat-3', name: 'Segurança', slug: 'seguranca', description: null, is_active: true, created_at: new Date().toISOString() },
   { id: 'cat-4', name: 'Esportes', slug: 'esportes', description: null, is_active: true, created_at: new Date().toISOString() },
   { id: 'cat-5', name: 'Cultura', slug: 'cultura', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-6', name: 'Geral', slug: 'geral', description: null, is_active: true, created_at: new Date().toISOString() }
+  { id: 'cat-6', name: 'Geral', slug: 'geral', description: null, is_active: true, created_at: new Date().toISOString() },
+  { id: 'cat-7', name: 'Brasil', slug: 'brasil', description: null, is_active: true, created_at: new Date().toISOString() },
+  { id: 'cat-8', name: 'Economia', slug: 'economia', description: null, is_active: true, created_at: new Date().toISOString() },
+  { id: 'cat-9', name: 'Mundo', slug: 'mundo', description: null, is_active: true, created_at: new Date().toISOString() },
+  { id: 'cat-10', name: 'Tecnologia', slug: 'tecnologia', description: null, is_active: true, created_at: new Date().toISOString() }
 ];
 
 const DEFAULT_POSTS: Post[] = [
@@ -44,8 +48,9 @@ const DEFAULT_POSTS: Post[] = [
     author_id: 'auth-1',
     category_id: 'cat-1',
     status: 'published',
-    is_featured: true,
-    is_breaking: true,
+    is_featured: false,
+    is_breaking: false,
+    region: 'SP',
     seo_title: 'Revitalização Manoel Goulart Presidente Prudente',
     seo_description: 'Obra de revitalização da Avenida Manoel Goulart em Presidente Prudente.',
     published_at: new Date().toISOString(),
@@ -67,6 +72,7 @@ const DEFAULT_POSTS: Post[] = [
     status: 'published',
     is_featured: false,
     is_breaking: false,
+    region: 'SP',
     seo_title: null,
     seo_description: null,
     published_at: new Date(Date.now() - 7200000).toISOString(),
@@ -88,6 +94,7 @@ const DEFAULT_POSTS: Post[] = [
     status: 'published',
     is_featured: false,
     is_breaking: false,
+    region: 'SP',
     seo_title: null,
     seo_description: null,
     published_at: new Date(Date.now() - 14400000).toISOString(),
@@ -109,6 +116,7 @@ const DEFAULT_POSTS: Post[] = [
     status: 'published',
     is_featured: false,
     is_breaking: false,
+    region: 'SP',
     seo_title: null,
     seo_description: null,
     published_at: new Date(Date.now() - 28800000).toISOString(),
@@ -123,19 +131,130 @@ const DEFAULT_POSTS: Post[] = [
     subtitle: 'Edital apoiará projetos de tecnologia aplicada ao agronegócio e desenvolvimento sustentável.',
     slug: 'parque-tecnologico-prudente-vagas-aceleracao',
     excerpt: 'As inscrições vão até o próximo dia 20 e oferecem mentoria especializada, infraestrutura compartilhada e fomento inicial.',
-    content: 'Excelente oportunidade para empreendedores e desenvolvedores locais. O Parque Tecnológico de Presidente Prudente publicou o edital para a contratação e incubação de até 50 startups inovadoras.\n\nO foco deste ano está em ideias que resolvam gargalos do agronegócio regional e desenvolvam sistemas inteligentes de energia renovável. As equipes selecionadas receberão mentorias semanais de especialistas do ecossistema nacional, espaço de coworking gratuito e conectividade de alta performance para prototipar suas soluções.',
+    content: 'Excelente oportunidade para empreendedores e desenvolvedores locais. O Parque Tecnológico de Presidente Prudente publicou o edital para a contratação e incubação de até 50 startups inovadoras.\n\nO focus deste ano está em ideias que resolvam gargalos do agronegócio regional e desenvolvam sistemas inteligentes de energia renovável. As equipes selecionadas receberão mentorias semanais de especialistas do ecossistema nacional, espaço de coworking gratuito e conectividade de alta performance para prototipar suas soluções.',
     cover_image_url: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&q=80&w=800',
     author_id: 'auth-1',
     category_id: 'cat-6',
     status: 'published',
     is_featured: false,
     is_breaking: false,
+    region: 'SP',
     seo_title: null,
     seo_description: null,
     published_at: new Date(Date.now() - 86400000).toISOString(),
     created_at: new Date(Date.now() - 86400000).toISOString(),
     updated_at: new Date().toISOString(),
     category: DEFAULT_CATEGORIES[5],
+    author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
+  },
+  {
+    id: 'post-6',
+    title: 'PLANTÃO NACIONAL: Banco Central eleva taxa Selic para combater pressões inflacionárias',
+    subtitle: 'Decisão do Copom foi unânime e surpreendeu analistas do mercado financeiro brasileiro.',
+    slug: 'plantao-nacional-banco-central-eleva-selic',
+    excerpt: 'Comitê de Política Monetária (Copom) do Banco Central elevou a taxa Selic para conter o avanço do IPCA e ancorar expectativas inflacionárias.',
+    content: 'Em uma decisão histórica tomada hoje, o Comitê de Política Monetária (Copom) do Banco Central anunciou o aumento da taxa básica de juros (Selic) para combater os riscos de pressões inflacionárias crescentes no mercado doméstico.\n\nA alta foi unânime entre os membros da diretoria colegiada e surpreendeu as principais mesas de análise econômica, que previam estabilidade no indicador. Segundo a nota técnica oficial, a persistência de preços elevados em serviços e a desvalorização cambial recente exigiram uma postura monetária mais contracionista para garantir o cumprimento das metas estabelecidas pelo Conselho Monetário Nacional (CMN).\n\n"O comitê enfatiza que a conjuntura macroeconômica requer firmeza e vigilância constante para evitar o descolamento das expectativas inflacionárias de longo prazo", afirmou o presidente da instituição.',
+    cover_image_url: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&q=80&w=1200',
+    author_id: 'auth-1',
+    category_id: 'cat-8',
+    status: 'published',
+    is_featured: true,
+    is_breaking: true,
+    region: 'BR',
+    seo_title: 'Banco Central eleva Selic',
+    seo_description: 'Banco Central eleva taxa básica de juros Selic para combater inflação.',
+    published_at: new Date().toISOString(),
+    created_at: new Date(Date.now() - 600000).toISOString(),
+    updated_at: new Date().toISOString(),
+    category: DEFAULT_CATEGORIES[7],
+    author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
+  },
+  {
+    id: 'post-7',
+    title: 'Reforma Tributária Nacional é aprovada no Senado Federal com ampla maioria histórica',
+    subtitle: 'Texto final segue para sanção presidencial e promete unificar impostos sobre consumo no Brasil.',
+    slug: 'reforma-tributaria-aprovada-senado-federal',
+    excerpt: 'O texto-base foi aprovado por 58 votos a favor e 18 contra, consolidando a simplificação do sistema tributário após três décadas de debate.',
+    content: 'O Senado Federal aprovou na noite de ontem o texto principal da Reforma Tributária em dois turnos de votação. A aprovação marca um marco histórico para a economia brasileira, alterando as regras vigentes de tributação de consumo vigentes desde a Constituição de 1988.\n\nA emenda à constituição cria o Imposto sobre Valor Agregado (IVA) dual, que irá unificar impostos federais, estaduais e municipais em duas frentes de arrecadação nacional. O governo espera que o novo sistema elimine o contencioso jurídico, diminua o custo logístico de produção de empresas brasileiras e aumente o PIB potencial no longo prazo.\n\n"A aprovação é uma vitória do diálogo federativo. Conseguimos conciliar interesses regionais em prol de um sistema moderno e transparente para toda a sociedade", declarou o relator da matéria na saída do plenário.',
+    cover_image_url: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&q=80&w=800',
+    author_id: 'auth-2',
+    category_id: 'cat-2',
+    status: 'published',
+    is_featured: false,
+    is_breaking: false,
+    region: 'BR',
+    seo_title: 'Reforma Tributária aprovada Senado',
+    seo_description: 'Senado Federal aprova a histórica Reforma Tributária de unificação de impostos no Brasil.',
+    published_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    updated_at: new Date().toISOString(),
+    category: DEFAULT_CATEGORIES[1],
+    author: { id: 'auth-2', full_name: 'Fernanda Lima', email: 'fernanda@melhoraprudente.com.br', role: 'editor', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
+  },
+  {
+    id: 'post-8',
+    title: 'Cúpula do G20 reúne maiores líderes globais no Rio de Janeiro para discutir transição ecológica',
+    subtitle: 'Presidência brasileira foca debates no combate à fome extrema e no financiamento de energia limpa.',
+    slug: 'cupula-g20-rio-janeiro-transicao-ecologica',
+    excerpt: 'Encontro oficial conta com a presença dos principais chefes de Estado para assinar a declaração conjunta de metas climáticas.',
+    content: 'Teve início hoje na capital fluminense a cúpula dos líderes do G20, o grupo que reúne as maiores economias do mundo. A presidência brasileira do grupo estabeleceu três pilares fundamentais de negociação: inclusão social, transição de matrizes energéticas e reforma das instituições de governança global.\n\nOs acordos multilaterais visam destinar mais de US$ 100 bilhões anuais em linhas de crédito facilitado para o desenvolvimento de infraestruturas de energia solar, eólica e biomassa em nações emergentes.',
+    cover_image_url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=800',
+    author_id: 'auth-1',
+    category_id: 'cat-9',
+    status: 'published',
+    is_featured: false,
+    is_breaking: false,
+    region: 'BR',
+    seo_title: 'Cúpula G20 Rio de Janeiro',
+    seo_description: 'Rio de Janeiro sedia cúpula de líderes do G20 focada em sustentabilidade e transição verde.',
+    published_at: new Date(Date.now() - 3600000 * 6).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 6).toISOString(),
+    updated_at: new Date().toISOString(),
+    category: DEFAULT_CATEGORIES[8],
+    author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
+  },
+  {
+    id: 'post-9',
+    title: 'Nova Inteligência Artificial brasileira de código aberto é lançada por consórcio tecnológico',
+    subtitle: 'Iniciativa acadêmica foca em processamento linguístico regional e ética computacional nativa.',
+    slug: 'nova-inteligencia-artificial-brasileira-codigo-aberto',
+    excerpt: 'Desenvolvido por universidades federais, o modelo linguístico é focado no português do Brasil com alta precisão jurídica e médica.',
+    content: 'Um consórcio de universidades federais e institutos privados de tecnologia anunciou o lançamento da primeira grande rede neural generativa desenvolvida 100% no Brasil e distribuída sob licença de código aberto.\n\nBatizado de Sabiá-Generativo, o modelo foi treinado em supercomputadores nacionais com foco exclusivo nas particularidades dialetais e culturais brasileiras. A ferramenta demonstrou resultados superiores aos modelos estrangeiros em interpretação de termos técnicos jurídicos e redação médica local, garantindo soberania tecnológica nacional.',
+    cover_image_url: 'https://images.unsplash.com/photo-1677442136019-21780efad99a?auto=format&fit=crop&q=80&w=800',
+    author_id: 'auth-2',
+    category_id: 'cat-10',
+    status: 'published',
+    is_featured: false,
+    is_breaking: false,
+    region: 'BR',
+    seo_title: 'IA brasileira código aberto',
+    seo_description: 'Consórcio universitário lança inteligência artificial brasileira generativa de código livre.',
+    published_at: new Date(Date.now() - 3600000 * 12).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
+    updated_at: new Date().toISOString(),
+    category: DEFAULT_CATEGORIES[9],
+    author: { id: 'auth-2', full_name: 'Fernanda Lima', email: 'fernanda@melhoraprudente.com.br', role: 'editor', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
+  },
+  {
+    id: 'post-10',
+    title: 'Seleção Brasileira brilha em campo, vence clássico sul-americano e carimba passaporte para o Mundial',
+    subtitle: 'Com show do ataque no Maracanã lotado, a seleção assegurou a classificação com rodadas de antecedência.',
+    slug: 'selecao-brasileira-vence-classico-classificada-mundial',
+    excerpt: 'Com gols de novas revelações, o time canarinho venceu por 2 a 0 com futebol ofensivo e envolvente, garantindo vaga isolada.',
+    content: 'A Seleção Brasileira deu um verdadeiro espetáculo para os mais de 70 mil torcedores presentes no estádio do Maracanã. Com gols de duas jovens promessas que atuam no futebol nacional, o Brasil superou seu maior rival histórico por 2x0.\n\nA vitória consolidou a campanha invicta sob o comando do novo comitê técnico e selou matematicamente a classificação antecipada para a Copa do Mundo. "Nossa equipe resgatou a alegria e o jogo bonito que definem o DNA do futebol brasileiro", elogiou o capitão do time durante coletiva.',
+    cover_image_url: 'https://images.unsplash.com/photo-1518063319789-7217e6706b04?auto=format&fit=crop&q=80&w=800',
+    author_id: 'auth-1',
+    category_id: 'cat-4',
+    status: 'published',
+    is_featured: false,
+    is_breaking: false,
+    region: 'BR',
+    seo_title: 'Seleção classificada copa do mundo',
+    seo_description: 'Brasil bate maior rival no Maracanã por 2 a 0 e garante vaga na Copa do Mundo.',
+    published_at: new Date(Date.now() - 3600000 * 18).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
+    updated_at: new Date().toISOString(),
+    category: DEFAULT_CATEGORIES[3],
     author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
   }
 ];
@@ -264,6 +383,28 @@ function mapNewsRowToPost(row: any): Post {
 
 function mapPostToNews(post: any): News {
   if (!post) return post;
+  
+  // Clean string helper
+  const cleanTitle = post.title || '';
+  const catName = post.category?.name || post.category_name || (typeof post.category === 'string' ? post.category : 'Geral');
+  
+  // Heuristic: Auto-detect region
+  let detectedRegion = post.region || null;
+  if (!detectedRegion) {
+    const lowerCat = catName.toLowerCase();
+    if (['brasil', 'política', 'economia', 'mundo', 'tecnologia'].includes(lowerCat) || lowerCat === 'politica') {
+      detectedRegion = 'BR';
+    } else {
+      detectedRegion = 'SP'; // Default regional
+    }
+  }
+
+  // Heuristic: Auto-detect breaking news
+  let detectedBreaking = post.is_breaking || false;
+  if (!detectedBreaking && (cleanTitle.toUpperCase().includes('PLANTÃO') || cleanTitle.toUpperCase().includes('URGENTE') || cleanTitle.toUpperCase().includes('BREAKING'))) {
+    detectedBreaking = true;
+  }
+
   return {
     id: post.id,
     title: post.title,
@@ -271,12 +412,18 @@ function mapPostToNews(post: any): News {
     content: post.content,
     excerpt: post.excerpt,
     cover_image: post.cover_image_url || post.cover_image,
-    category: post.category?.name || post.category_name || (typeof post.category === 'string' ? post.category : 'Geral'),
+    category: catName,
     status: post.status === 'published' ? 'published' : 'draft',
     author_id: post.author_id || 'system',
     created_at: post.created_at,
     updated_at: post.updated_at || post.created_at,
-    author: post.author
+    author: post.author,
+    
+    // Set advanced features
+    is_breaking: detectedBreaking,
+    is_featured: post.is_featured || false,
+    region: detectedRegion,
+    subtitle: post.subtitle || null
   };
 }
 
@@ -1057,7 +1204,11 @@ export const engagementService = {
     }
   },
 
-  async getTrendingNews(limit = 5): Promise<(News & { viewsCount: number; likesCount: number; commentsCount: number; sharesCount: number; score: number })[]> {
+  async getTrendingNews(
+    limit = 5, 
+    filterRegion?: string | null, 
+    realTimeOnly = false
+  ): Promise<(News & { viewsCount: number; likesCount: number; commentsCount: number; sharesCount: number; score: number })[]> {
     try {
       const newsList = await newsPortalService.getLatestNews(100);
       
@@ -1102,19 +1253,39 @@ export const engagementService = {
         sharesList = getStoredData<any[]>('mp_fallback_shares', []);
       }
 
+      const nowTime = Date.now();
+      const last15m = 15 * 60 * 1000;
+
       const newsWithEngagement = newsList.map(news => {
-        const likesCount = likesList.filter(l => l.news_id === news.id).length;
-        const commentsCount = commentsList.filter(c => c.news_id === news.id).length;
-        const viewsCount = viewsList.filter(v => v.news_id === news.id).length;
-        const sharesCount = sharesList.filter(s => s.news_id === news.id).length;
+        const newsLikes = likesList.filter(l => l.news_id === news.id);
+        const newsComments = commentsList.filter(c => c.news_id === news.id);
+        const newsViews = viewsList.filter(v => v.news_id === news.id);
+        const newsShares = sharesList.filter(s => s.news_id === news.id);
+
+        const likesCount = newsLikes.length;
+        const commentsCount = newsComments.length;
+        const viewsCount = newsViews.length;
+        const sharesCount = newsShares.length;
         
-        const ageInHours = (Date.now() - new Date(news.created_at).getTime()) / 3600000;
+        // Velocity: interactions in the last 15 minutes
+        const likesLast15 = newsLikes.filter(x => (nowTime - new Date(x.created_at || nowTime).getTime()) <= last15m).length;
+        const commentsLast15 = newsComments.filter(x => (nowTime - new Date(x.created_at || nowTime).getTime()) <= last15m).length;
+        const viewsLast15 = newsViews.filter(x => (nowTime - new Date(x.created_at || nowTime).getTime()) <= last15m).length;
+        const sharesLast15 = newsShares.filter(x => (nowTime - new Date(x.created_at || nowTime).getTime()) <= last15m).length;
+
+        // velocity_boost: rate of growth
+        const velocity_boost = (viewsLast15 * 5) + (likesLast15 * 15) + (commentsLast15 * 25) + (sharesLast15 * 20);
+
+        const ageInHours = (nowTime - new Date(news.created_at).getTime()) / 3600000;
         
-        // Recency Score: maximum 48 points for fresh posts (under 48h), sliding down linearly to 0
-        const recencyScore = ageInHours <= 48 ? Math.max(0, 48 - ageInHours) : 0;
+        // recency_boost: linear decay from 48 down to 0 points
+        const recency_boost = ageInHours <= 48 ? Math.max(0, 48 - ageInHours) : 0;
         
-        // Advanced formula: score = (views * 1) + (likes * 4) + (comments * 10) + (shares * 6) + recencyScore
-        const score = (viewsCount * 1) + (likesCount * 4) + (commentsCount * 10) + (sharesCount * 6) + recencyScore;
+        // geo_boost: regional relevance (e.g. if requested region matches, add 30 points)
+        const geo_boost = (filterRegion && news.region === filterRegion) ? 30 : 0;
+
+        // Complete score: views*1 + likes*4 + comments*6 + shares*5 + recency_boost + geo_boost + velocity_boost
+        const score = (viewsCount * 1) + (likesCount * 4) + (commentsCount * 6) + (sharesCount * 5) + recency_boost + geo_boost + velocity_boost;
 
         return {
           ...news,
@@ -1122,11 +1293,29 @@ export const engagementService = {
           likesCount,
           commentsCount,
           sharesCount,
-          score
+          score,
+          velocityScore: velocity_boost
         };
       });
 
-      return newsWithEngagement.sort((a, b) => b.score - a.score).slice(0, limit);
+      // Filter by region if requested and we are NOT looking for all national news
+      let filteredNews = newsWithEngagement;
+      if (filterRegion && filterRegion !== 'BR') {
+        filteredNews = newsWithEngagement.filter(news => news.region === filterRegion);
+      } else if (filterRegion === 'BR') {
+        // 'BR' means either region is 'BR' or category belongs to national editorials
+        filteredNews = newsWithEngagement.filter(news => 
+          news.region === 'BR' || 
+          ['brasil', 'politica', 'economia', 'mundo', 'tecnologia'].includes((news.category || '').toLowerCase())
+        );
+      }
+
+      if (realTimeOnly) {
+        // Sort primarily by recent growth rate (velocityScore)
+        return filteredNews.sort((a, b) => b.velocityScore - a.velocityScore).slice(0, limit);
+      }
+
+      return filteredNews.sort((a, b) => b.score - a.score).slice(0, limit);
     } catch (err) {
       console.error('Error fetching trending news:', err);
       return [];

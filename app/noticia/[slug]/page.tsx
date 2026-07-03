@@ -129,7 +129,7 @@ export default async function NewsDetailPage({ params }: Props) {
                   <p className="text-zinc-500 text-xs font-medium">Jornalista</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-sm text-zinc-500 font-semibold">
+              <div className="flex items-center gap-2 text-sm text-zinc-500 font-semibold" suppressHydrationWarning>
                 <Calendar size={16} className="text-red-600" />
                 {formatDate(newsItem.created_at)}
               </div>

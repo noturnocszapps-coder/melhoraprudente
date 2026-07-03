@@ -39,7 +39,7 @@ export const NewsCard = ({ post, variant = 'default', className }: NewsCardProps
             <span className="bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full shadow-lg shadow-red-600/20">
               {category?.name || 'Destaque'}
             </span>
-            <span className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">
+            <span className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest" suppressHydrationWarning>
               {published_at ? formatDate(published_at) : 'Hoje'}
             </span>
           </div>
@@ -78,7 +78,7 @@ export const NewsCard = ({ post, variant = 'default', className }: NewsCardProps
           <p className="hidden md:block text-zinc-500 text-sm font-medium leading-relaxed line-clamp-2">
             {subtitle}
           </p>
-          <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
+          <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-bold uppercase tracking-widest" suppressHydrationWarning>
             <span>{author?.full_name || 'Redação'}</span>
             <span>•</span>
             <span>{published_at ? formatDate(published_at) : 'Recentemente'}</span>
@@ -129,7 +129,7 @@ export const NewsCard = ({ post, variant = 'default', className }: NewsCardProps
         <p className="text-zinc-500 text-sm font-medium leading-relaxed line-clamp-2">
           {subtitle}
         </p>
-        <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-bold uppercase tracking-widest pt-2">
+        <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-bold uppercase tracking-widest pt-2" suppressHydrationWarning>
           <span>{author?.full_name || 'Redação'}</span>
           <span>•</span>
           <span>{published_at ? formatDate(published_at) : 'Recentemente'}</span>

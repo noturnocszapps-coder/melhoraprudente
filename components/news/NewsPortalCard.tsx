@@ -41,7 +41,7 @@ export const NewsPortalCard = ({ news, variant = 'default', className }: NewsPor
             <span className="bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full shadow-lg shadow-red-600/20">
               {category || 'Geral'}
             </span>
-            <span className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">
+            <span className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest" suppressHydrationWarning>
               {created_at ? formatDate(created_at) : 'Hoje'}
             </span>
           </div>
@@ -79,7 +79,7 @@ export const NewsPortalCard = ({ news, variant = 'default', className }: NewsPor
           <h3 className="text-sm font-black text-zinc-900 leading-tight tracking-tight group-hover:text-red-600 transition-colors line-clamp-2">
             {title}
           </h3>
-          <span className="text-[10px] text-zinc-400 font-bold block">
+          <span className="text-[10px] text-zinc-400 font-bold block" suppressHydrationWarning>
             {created_at ? formatDate(created_at) : 'Hoje'}
           </span>
         </div>
@@ -112,7 +112,7 @@ export const NewsPortalCard = ({ news, variant = 'default', className }: NewsPor
             {excerpt}
           </p>
         )}
-        <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-bold uppercase tracking-widest pt-2">
+        <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-bold uppercase tracking-widest pt-2" suppressHydrationWarning>
           <span>{author?.full_name || 'Redação'}</span>
           <span>•</span>
           <span>{created_at ? formatDate(created_at) : 'Recentemente'}</span>

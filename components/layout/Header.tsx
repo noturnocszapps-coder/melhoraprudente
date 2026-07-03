@@ -10,6 +10,11 @@ export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
   const { user, profile, signOut, isAdmin, isEditor } = useAuth();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white border-b border-zinc-200 shadow-sm">
@@ -24,8 +29,8 @@ export const Header = () => {
               </Link>
             </div>
           </div>
-          <div className="hidden sm:block text-zinc-400">
-            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          <div className="hidden sm:block text-zinc-400" suppressHydrationWarning>
+            {mounted ? new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }) : ''}
           </div>
         </div>
       </div>

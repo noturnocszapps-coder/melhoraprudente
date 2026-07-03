@@ -9,7 +9,25 @@ export function formatDate(date: string | Date | null | undefined) {
   if (!date) return 'Data indisponível';
   
   try {
-    const d = new Date(date);
+    let d: Date;
+    if (typeof date === 'string') {
+      let dateStr = date.trim();
+      // If it doesn't specify timezone offset or 'Z', treat it as UTC on both server and client to avoid local parsing differences
+      if (!dateStr.includes('Z') && !dateStr.match(/[\+\-]\d\d:?\d\d$/)) {
+        if (dateStr.includes(' ')) {
+          dateStr = dateStr.replace(' ', 'T');
+        }
+        if (!dateStr.includes('T')) {
+          dateStr = dateStr + 'T00:00:00Z';
+        } else {
+          dateStr = dateStr + 'Z';
+        }
+      }
+      d = new Date(dateStr);
+    } else {
+      d = new Date(date);
+    }
+
     if (isNaN(d.getTime())) return 'Data inválida';
     
     return new Intl.DateTimeFormat('pt-BR', {
