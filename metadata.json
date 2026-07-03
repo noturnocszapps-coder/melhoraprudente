@@ -3,5 +3,8 @@
   "description": "Portal de notícias local focado em Presidente Prudente e região, com foco em velocidade, SEO e monetização.",
   "requestFramePermissions": [
     "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }

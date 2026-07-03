@@ -7,29 +7,29 @@ import { engagementService } from '@/services';
 import { News } from '@/types';
 import { motion, AnimatePresence } from 'motion/react';
  
-type TabType = 'nacional' | 'regional' | 'realtime';
+type TabType = 'lidas' | 'repercussao' | 'realtime';
  
 export default function TrendingWidget() {
-  const [activeTab, setActiveTab] = useState<TabType>('nacional');
+  const [activeTab, setActiveTab] = useState<TabType>('lidas');
   const [loading, setLoading] = useState(true);
   
-  const [nationalNews, setNationalNews] = useState<any[]>([]);
-  const [regionalNews, setRegionalNews] = useState<any[]>([]);
+  const [lidasNews, setLidasNews] = useState<any[]>([]);
+  const [repercussaoNews, setRepercussaoNews] = useState<any[]>([]);
   const [realtimeNews, setRealtimeNews] = useState<any[]>([]);
 
   useEffect(() => {
     async function loadTrendingData() {
       try {
         setLoading(true);
-        // Get National trending news
-        const national = await engagementService.getTrendingNews(6, 'BR');
-        setNationalNews(national);
+        // Get local trending news (most read)
+        const lidas = await engagementService.getTrendingNews(6);
+        setLidasNews(lidas);
 
-        // Get Regional trending news (SP / Presidente Prudente)
-        const regional = await engagementService.getTrendingNews(6, 'SP');
-        setRegionalNews(regional);
+        // Get local repercussão news
+        const repercussao = await engagementService.getTrendingNews(6);
+        setRepercussaoNews(repercussao);
 
-        // Get Realtime trending news (fastest growth in 15 mins)
+        // Get local realtime trending news
         const realtime = await engagementService.getTrendingNews(6, null, true);
         setRealtimeNews(realtime);
       } catch (err) {
@@ -43,14 +43,14 @@ export default function TrendingWidget() {
 
   const getActiveList = () => {
     switch (activeTab) {
-      case 'nacional':
-        return nationalNews;
-      case 'regional':
-        return regionalNews;
+      case 'lidas':
+        return lidasNews;
+      case 'repercussao':
+        return repercussaoNews;
       case 'realtime':
         return realtimeNews;
       default:
-        return nationalNews;
+        return lidasNews;
     }
   };
 
@@ -74,8 +74,8 @@ export default function TrendingWidget() {
           <div>
             <h3 className="text-lg font-black uppercase tracking-tighter">Radar de Engajamento</h3>
             <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
-              {activeTab === 'nacional' && 'As mais lidas e comentadas do Brasil'}
-              {activeTab === 'regional' && 'O que repercute no Oeste Paulista'}
+              {activeTab === 'lidas' && 'As notícias mais lidas de Prudente'}
+              {activeTab === 'repercussao' && 'O que repercute no Oeste Paulista'}
               {activeTab === 'realtime' && 'Crescimento explosivo nos últimos 15 min'}
             </p>
           </div>
@@ -84,26 +84,26 @@ export default function TrendingWidget() {
         {/* Tab Switcher */}
         <div className="grid grid-cols-3 bg-zinc-900/60 p-1 rounded-2xl border border-zinc-800/80">
           <button
-            onClick={() => setActiveTab('nacional')}
+            onClick={() => setActiveTab('lidas')}
             className={`py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1 ${
-              activeTab === 'nacional'
+              activeTab === 'lidas'
                 ? 'bg-red-600 text-white shadow-md'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
             <Globe size={11} />
-            Nacional
+            Mais Lidas
           </button>
           <button
-            onClick={() => setActiveTab('regional')}
+            onClick={() => setActiveTab('repercussao')}
             className={`py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1 ${
-              activeTab === 'regional'
+              activeTab === 'repercussao'
                 ? 'bg-red-600 text-white shadow-md'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
             <MapPin size={11} />
-            Regional
+            Repercussão
           </button>
           <button
             onClick={() => setActiveTab('realtime')}

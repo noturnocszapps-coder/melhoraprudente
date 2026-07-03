@@ -27,9 +27,9 @@ export default function EditNewsPage() {
     status: 'draft' as 'draft' | 'published',
     
     // Multi-city Tenant
-    city_slug: 'nacional',
-    city_name: 'Nacional',
-    region: 'BR',
+    city_slug: 'presidente-prudente',
+    city_name: 'Presidente Prudente',
+    region: 'SP',
     is_breaking: false,
 
     // AI Editorial Engine
@@ -43,11 +43,8 @@ export default function EditNewsPage() {
   });
 
   const CITIES = [
-    { slug: 'nacional', name: 'Nacional', region: 'BR' },
     { slug: 'presidente-prudente', name: 'Presidente Prudente', region: 'SP' },
-    { slug: 'sao-paulo', name: 'São Paulo', region: 'SP' },
-    { slug: 'rio-de-janeiro', name: 'Rio de Janeiro', region: 'RJ' },
-    { slug: 'brasilia', name: 'Brasília', region: 'DF' }
+    { slug: 'regiao-prudente', name: 'Região de Prudente (Oeste Paulista)', region: 'SP' }
   ];
 
   const handleCityChange = (slug: string) => {
@@ -122,9 +119,9 @@ export default function EditNewsPage() {
             status: data.status === 'published' ? 'published' : 'draft',
             
             // City and AI
-            city_slug: data.city_slug || 'nacional',
-            city_name: data.city_name || 'Nacional',
-            region: data.region || 'BR',
+            city_slug: data.city_slug || 'presidente-prudente',
+            city_name: data.city_name || 'Presidente Prudente',
+            region: data.region || 'SP',
             is_breaking: data.is_breaking || false,
             ai_classification: data.ai_classification || '',
             ai_relevance_score: data.ai_relevance_score ?? 50,

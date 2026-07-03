@@ -26,24 +26,43 @@ function setStoredData<T>(key: string, value: T): void {
 const DEFAULT_CATEGORIES: Category[] = [
   { id: 'cat-1', name: 'Cidade', slug: 'cidade', description: null, is_active: true, created_at: new Date().toISOString() },
   { id: 'cat-2', name: 'Política', slug: 'politica', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-3', name: 'Segurança', slug: 'seguranca', description: null, is_active: true, created_at: new Date().toISOString() },
+  { id: 'cat-3', name: 'Polícia', slug: 'policia', description: null, is_active: true, created_at: new Date().toISOString() },
   { id: 'cat-4', name: 'Esportes', slug: 'esportes', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-5', name: 'Cultura', slug: 'cultura', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-6', name: 'Geral', slug: 'geral', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-7', name: 'Brasil', slug: 'brasil', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-8', name: 'Economia', slug: 'economia', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-9', name: 'Mundo', slug: 'mundo', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-10', name: 'Tecnologia', slug: 'tecnologia', description: null, is_active: true, created_at: new Date().toISOString() }
+  { id: 'cat-5', name: 'Região', slug: 'regiao', description: null, is_active: true, created_at: new Date().toISOString() }
 ];
 
 const DEFAULT_POSTS: Post[] = [
   {
     id: 'post-1',
-    title: 'Prefeitura de Presidente Prudente anuncia revitalização completa da Avenida Manoel Goulart',
-    subtitle: 'Obras de R$ 15 milhões incluem ciclovia, nova iluminação em LED e recapeamento asfáltico completo.',
-    slug: 'prefeitura-anuncia-revitalizacao-avenida-manoel-goulart',
-    excerpt: 'Obras começam na próxima segunda-feira e visam modernizar o principal corredor comercial da cidade, com previsão de conclusão em seis meses.',
-    content: 'A Prefeitura de Presidente Prudente anunciou hoje um plano abrangente de revitalização para a Avenida Manoel Goulart, a mais importante artéria comercial e de tráfego do município.\n\nCom investimentos previstos de R$ 15 milhões, o projeto contempla o recapeamento asfáltico completo de toda a extensão, a instalação de novas lâmpadas de LED de alta eficiência energética, e a construção de uma ciclovia bidirecional no canteiro central.\n\nSegundo o prefeito, a intervenção visa melhorar a mobilidade urbana, promover a segurança dos pedestres e ciclistas, e impulsionar o comércio varejista local. "É uma obra aguardada há décadas que transformará a entrada da nossa cidade e trará mais qualidade de vida a todos os prudentinos", destacou.',
+    title: 'Grêmio Prudente intensifica preparação tática para a disputa da Série A3 do Campeonato Paulista',
+    subtitle: 'Comandada pela comissão técnica regional, equipe realiza treinos em dois períodos no Estádio Prudentão.',
+    slug: 'gremio-prudente-preparacao-campeonato-paulista-serie-a3',
+    excerpt: 'Elenco carcará foca no aprimoramento físico e organização tática coletiva visando a estreia oficial na competição paulista.',
+    content: 'O Grêmio Prudente segue em ritmo acelerado em sua preparação de pré-temporada para a disputa do Campeonato Paulista da Série A3. Os treinamentos ocorrem diariamente no Estádio Municipal Paulo Constantino, o Prudentão, com sessões em dois períodos dedicadas ao aprimoramento tático, técnico e de condicionamento de força.\n\nA diretoria do clube confirmou a chegada de novos reforços pontuais para compor o grupo de atletas, incluindo peças de meio-campo experientes do interior de São Paulo. A comissão técnica ressalta que o foco inicial está em consolidar os padrões de jogo ofensivos e a solidez defensiva coletiva.\n\n"Nosso objetivo é colocar o Grêmio Prudente em condições plenas de disputar a liderança e buscar o acesso. Sabemos que a Série A3 é uma competição extremamente competitiva e física, por isso cada sessão de treino no Prudentão é decisiva", afirmou o treinador em entrevista coletiva.',
+    cover_image_url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=800',
+    author_id: 'auth-1',
+    category_id: 'cat-4',
+    status: 'published',
+    is_featured: true,
+    is_breaking: false,
+    region: 'SP',
+    city_slug: 'presidente-prudente',
+    city_name: 'Presidente Prudente',
+    seo_title: 'Grêmio Prudente preparação Série A3 Paulista',
+    seo_description: 'Grêmio Prudente realiza pré-temporada tática e física no Estádio Prudentão.',
+    published_at: new Date().toISOString(),
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+    updated_at: new Date().toISOString(),
+    category: DEFAULT_CATEGORIES[3],
+    author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
+  },
+  {
+    id: 'post-2',
+    title: 'Prefeitura inicia obras de recapeamento e sinalização na Avenida Manoel Goulart',
+    subtitle: 'Intervenções na principal via comercial de Presidente Prudente exigem desvios e atenção dos motoristas.',
+    slug: 'prefeitura-inicia-obras-recapeamento-avenida-manoel-goulart',
+    excerpt: 'Serviços de fresagem do asfalto antigo começaram pelo trecho próximo ao pórtico de entrada e avançam em direção ao centro comercial.',
+    content: 'A Secretaria de Planejamento, Desenvolvimento Urbano e Habitação de Presidente Prudente iniciou nesta semana as obras de recapeamento asfáltico e readequação da sinalização de trânsito em trechos degradados da Avenida Manoel Goulart, a principal artéria comercial do município.\n\nO cronograma de obras abrange a fresagem mecânica da antiga camada asfáltica, a aplicação do novo pavimento asfáltico e, posteriormente, a sinalização de solo sob a supervisão da Secretaria Municipal de Mobilidade Urbana e Cooperação em Segurança Pública (Semob). Os motoristas que trafegam na entrada da cidade devem utilizar rotas alternativas recomendadas para evitar congestionamentos nos horários de pico.\n\nSegundo a administração pública municipal, a revitalização do pavimento asfáltico é parte de um programa abrangente de manutenção de corredores de transporte coletivo e vias de grande circulação regional, visando dar mais segurança e fluidez ao trânsito prudentino.',
     cover_image_url: 'https://images.unsplash.com/photo-1449034446853-66c86144b0ad?auto=format&fit=crop&q=80&w=1200',
     author_id: 'auth-1',
     category_id: 'cat-1',
@@ -51,65 +70,23 @@ const DEFAULT_POSTS: Post[] = [
     is_featured: false,
     is_breaking: false,
     region: 'SP',
-    seo_title: 'Revitalização Manoel Goulart Presidente Prudente',
-    seo_description: 'Obra de revitalização da Avenida Manoel Goulart em Presidente Prudente.',
-    published_at: new Date().toISOString(),
-    created_at: new Date(Date.now() - 3600000).toISOString(),
+    city_slug: 'presidente-prudente',
+    city_name: 'Presidente Prudente',
+    seo_title: 'Obras recapeamento Avenida Manoel Goulart Prudente',
+    seo_description: 'Prefeitura de Presidente Prudente inicia recapeamento na Avenida Manoel Goulart.',
+    published_at: new Date(Date.now() - 7200000).toISOString(),
+    created_at: new Date(Date.now() - 7200000).toISOString(),
     updated_at: new Date().toISOString(),
     category: DEFAULT_CATEGORIES[0],
     author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
   },
   {
-    id: 'post-2',
-    title: 'Prudente Futebol Clube vence partida decisiva por 3x1 e lidera a tabela do torneio regional',
-    subtitle: 'Com dois gols de centroavante, o time garantiu a vitória diante de casa cheia no Prudentão.',
-    slug: 'prudente-futebol-clube-vence-partida-decisiva',
-    excerpt: 'Com dois gols do centroavante Marcos e grande atuação do goleiro Lucas, a equipe manteve o primeiro lugar na tabela e animou os torcedores.',
-    content: 'O Prudente FC conquistou uma vitória memorável na noite de ontem, jogando no estádio Prudentão. O placar de 3 a 1 sobre o rival regional garantiu ao clube a manutenção da liderança isolada do torneio.\n\nComandada pelo técnico Roberto, a equipe mostrou entrosamento tático e dominou a partida desde os primeiros minutos. O destaque do jogo foi o atacante Marcos, autor de dois gols de cabeça. A torcida encheu os setores liberados do estádio e comemorou muito a boa campanha que credencia o clube para a fase de mata-mata nacional.',
-    cover_image_url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=800',
-    author_id: 'auth-2',
-    category_id: 'cat-4',
-    status: 'published',
-    is_featured: false,
-    is_breaking: false,
-    region: 'SP',
-    seo_title: null,
-    seo_description: null,
-    published_at: new Date(Date.now() - 7200000).toISOString(),
-    created_at: new Date(Date.now() - 7200000).toISOString(),
-    updated_at: new Date().toISOString(),
-    category: DEFAULT_CATEGORIES[3],
-    author: { id: 'auth-2', full_name: 'Fernanda Lima', email: 'fernanda@melhoraprudente.com.br', role: 'editor', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
-  },
-  {
     id: 'post-3',
-    title: 'Festival de Teatro de Presidente Prudente começa nesta quinta com mais de 20 espetáculos gratuitos',
-    subtitle: 'Peças locais e nacionais serão encenadas em palcos públicos e teatros parceiros até o fim do mês.',
-    slug: 'festival-de-teatro-presidente-prudente-comeca-nesta-quinta',
-    excerpt: 'Abertura oficial ocorre na Praça Nove de Julho com um show de performances circenses e intervenções artísticas abertas ao público.',
-    content: 'Tem início hoje um dos maiores eventos culturais do oeste paulista: o Festival Anual de Teatro de Presidente Prudente.\n\nNesta edição, serão apresentados 22 espetáculos de companhias renomadas do estado de São Paulo e de outras partes do Brasil. O festival prioriza a acessibilidade e tem 100% de sua programação gratuita. Além dos teatros municipais, praças e parques da cidade receberão palcos abertos ao ar livre para levar a arte dramática diretamente à população.',
-    cover_image_url: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?auto=format&fit=crop&q=80&w=800',
-    author_id: 'auth-1',
-    category_id: 'cat-5',
-    status: 'published',
-    is_featured: false,
-    is_breaking: false,
-    region: 'SP',
-    seo_title: null,
-    seo_description: null,
-    published_at: new Date(Date.now() - 14400000).toISOString(),
-    created_at: new Date(Date.now() - 14400000).toISOString(),
-    updated_at: new Date().toISOString(),
-    category: DEFAULT_CATEGORIES[4],
-    author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
-  },
-  {
-    id: 'post-4',
-    title: 'Centro de Monitoramento Inteligente por câmeras começa a operar nas principais vias comerciais',
-    subtitle: 'Iniciativa municipal une inteligência artificial e forças policiais para combater pequenos delitos.',
-    slug: 'centro-monitoramento-inteligente-cameras-operacao',
-    excerpt: 'Sistema inovador conta com leitura automática de placas e inteligência artificial para detectar padrões suspeitos em tempo real.',
-    content: 'O comércio do centro de Presidente Prudente ganhou um importante reforço de segurança hoje. A prefeitura inaugurou o novo Centro de Monitoramento Inteligente (CMI), integrando 120 novas câmeras de ultra definição.\n\nO sistema utiliza algoritmos avançados de reconhecimento que alertam automaticamente a Central de Comando e as patrulhas de rua sobre comportamentos de risco ou veículos cadastrados no sistema de busca por roubos. Representantes das associações comerciais elogiaram a rapidez de implantação da medida.',
+    title: 'Polícia Militar deflagra \'Operação Impacto\' contra furtos e roubos em Presidente Prudente',
+    subtitle: 'Ações contam com bloqueios viários e intensificação do patrulhamento preventivo em pontos estratégicos.',
+    slug: 'policia-militar-operacao-impacto-presidente-prudente',
+    excerpt: 'Comando de Policiamento do Interior (CPI-8) mobiliza equipes do 18º BPM/I, Força Tática e Rocam para reforçar segurança local.',
+    content: 'O Comando de Policiamento do Interior (CPI-8) deflagrou a "Operação Impacto" em Presidente Prudente e demais municípios da região metropolitana. A iniciativa visa intensificar as ações de policiamento preventivo e repressivo para coibir delitos patrimoniais, como furtos e roubos em áreas residenciais e comerciais.\n\nAs ações concentram-se em pontos de grande movimentação e rotas de escape identificadas pelo setor de inteligência da Polícia Militar. Estão sendo realizados bloqueios de trânsito para fiscalização de veículos e indivíduos em atitudes suspeitas, além do emprego de equipes especializadas da Força Tática e Rondas Ostensivas com Apoio de Motocicletas (Rocam).\n\n"Esta operação demonstra o nosso compromisso com a redução contínua dos índices criminais na região e o aumento da percepção de segurança de toda a população de Presidente Prudente e arredores", explicou o porta-voz da corporação.',
     cover_image_url: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=800',
     author_id: 'auth-2',
     category_id: 'cat-3',
@@ -117,142 +94,180 @@ const DEFAULT_POSTS: Post[] = [
     is_featured: false,
     is_breaking: false,
     region: 'SP',
-    seo_title: null,
-    seo_description: null,
-    published_at: new Date(Date.now() - 28800000).toISOString(),
-    created_at: new Date(Date.now() - 28800000).toISOString(),
+    city_slug: 'presidente-prudente',
+    city_name: 'Presidente Prudente',
+    seo_title: 'PM Operação Impacto Presidente Prudente segurança',
+    seo_description: 'Polícia Militar intensifica patrulhamento contra roubos e furtos in Prudente.',
+    published_at: new Date(Date.now() - 14400000).toISOString(),
+    created_at: new Date(Date.now() - 14400000).toISOString(),
     updated_at: new Date().toISOString(),
     category: DEFAULT_CATEGORIES[2],
     author: { id: 'auth-2', full_name: 'Fernanda Lima', email: 'fernanda@melhoraprudente.com.br', role: 'editor', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
   },
   {
-    id: 'post-5',
-    title: 'Parque Tecnológico de Prudente abre 50 vagas de aceleração para novas startups inovadoras',
-    subtitle: 'Edital apoiará projetos de tecnologia aplicada ao agronegócio e desenvolvimento sustentável.',
-    slug: 'parque-tecnologico-prudente-vagas-aceleracao',
-    excerpt: 'As inscrições vão até o próximo dia 20 e oferecem mentoria especializada, infraestrutura compartilhada e fomento inicial.',
-    content: 'Excelente oportunidade para empreendedores e desenvolvedores locais. O Parque Tecnológico de Presidente Prudente publicou o edital para a contratação e incubação de até 50 startups inovadoras.\n\nO focus deste ano está em ideias que resolvam gargalos do agronegócio regional e desenvolvam sistemas inteligentes de energia renovável. As equipes selecionadas receberão mentorias semanais de especialistas do ecossistema nacional, espaço de coworking gratuito e conectividade de alta performance para prototipar suas soluções.',
-    cover_image_url: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&q=80&w=800',
+    id: 'post-4',
+    title: 'Fentepp reúne dezenas de apresentações de teatro gratuitas em Presidente Prudente',
+    subtitle: 'Festival Nacional de Teatro traz espetáculos de companhias de vários estados para praças e teatros.',
+    slug: 'fentepp-festival-nacional-teatro-presidente-prudente',
+    excerpt: 'Evento de destaque no cenário cultural do Oeste Paulista promove o acesso gratuito à arte cênica em diversos espaços públicos.',
+    content: 'Tem início em Presidente Prudente uma nova edição do tradicional Festival Nacional de Teatro (Fentepp), consagrado como um dos mais importantes eventos culturais do interior do estado de São Paulo.\n\nA programação oficial reúne companhias de teatro vindas de diferentes regiões do país, apresentando espetáculos de variados gêneros, incluindo produções infantis, dramas e intervenções de teatro de rua de acesso livre. As encenações ocorrem no Teatro de Arena da Praça Nove de Julho, no Centro Cultural Matarazzo e em praças periféricas de forma descentralizada.\n\nDe acordo com a Secretaria Municipal de Cultura, o principal pilar do Fentepp é democratizar a arte e aproximar a produção cênica contemporânea nacional de toda a comunidade prudentina. A expectativa de público para as apresentações é excelente.',
+    cover_image_url: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?auto=format&fit=crop&q=80&w=800',
     author_id: 'auth-1',
-    category_id: 'cat-6',
+    category_id: 'cat-1',
     status: 'published',
     is_featured: false,
     is_breaking: false,
     region: 'SP',
-    seo_title: null,
-    seo_description: null,
-    published_at: new Date(Date.now() - 86400000).toISOString(),
-    created_at: new Date(Date.now() - 86400000).toISOString(),
+    city_slug: 'presidente-prudente',
+    city_name: 'Presidente Prudente',
+    seo_title: 'Fentepp Festival Teatro Presidente Prudente gratis',
+    seo_description: 'Festival Nacional de Teatro promove programação gratuita de espetáculos em Prudente.',
+    published_at: new Date(Date.now() - 28800000).toISOString(),
+    created_at: new Date(Date.now() - 28800000).toISOString(),
     updated_at: new Date().toISOString(),
-    category: DEFAULT_CATEGORIES[5],
+    category: DEFAULT_CATEGORIES[0],
     author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
   },
   {
-    id: 'post-6',
-    title: 'PLANTÃO NACIONAL: Banco Central eleva taxa Selic para combater pressões inflacionárias',
-    subtitle: 'Decisão do Copom foi unânime e surpreendeu analistas do mercado financeiro brasileiro.',
-    slug: 'plantao-nacional-banco-central-eleva-selic',
-    excerpt: 'Comitê de Política Monetária (Copom) do Banco Central elevou a taxa Selic para conter o avanço do IPCA e ancorar expectativas inflacionárias.',
-    content: 'Em uma decisão histórica tomada hoje, o Comitê de Política Monetária (Copom) do Banco Central anunciou o aumento da taxa básica de juros (Selic) para combater os riscos de pressões inflacionárias crescentes no mercado doméstico.\n\nA alta foi unânime entre os membros da diretoria colegiada e surpreendeu as principais mesas de análise econômica, que previam estabilidade no indicador. Segundo a nota técnica oficial, a persistência de preços elevados em serviços e a desvalorização cambial recente exigiram uma postura monetária mais contracionista para garantir o cumprimento das metas estabelecidas pelo Conselho Monetário Nacional (CMN).\n\n"O comitê enfatiza que a conjuntura macroeconômica requer firmeza e vigilância constante para evitar o descolamento das expectativas inflacionárias de longo prazo", afirmou o presidente da instituição.',
-    cover_image_url: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&q=80&w=1200',
+    id: 'post-5',
+    title: 'Câmara de Presidente Prudente aprova orçamento municipal para o próximo ano legislativo',
+    subtitle: 'Proposta orçamentária fixa as prioridades de repasses para saúde, educação e obras públicas urbanas.',
+    slug: 'camara-presidente-prudente-aprova-orcamento-municipal',
+    excerpt: 'Projeto de diretrizes orçamentárias foi votado em sessão extraordinária na Câmara de Vereadores com emendas aprovadas.',
+    content: 'A Câmara Municipal de Presidente Prudente aprovou em votação definitiva, em sessão extraordinária, a Lei Orçamentária Anual (LOA) que define a estimativa de receitas e a fixação de despesas do município para o próximo ano financeiro.\n\nO orçamento garante a destinação de verbas substanciais para a melhoria dos serviços públicos básicos. A Secretaria de Saúde municipal receberá a maior parcela orçamentária, seguida pela Secretaria de Educação. Os vereadores aprovaram também emendas impositivas destinadas a pequenas intervenções viárias e recapeamento asfáltico em bairros periféricos.\n\nOs debates em plenário reforçaram a necessidade de monitoramento rigoroso da responsabilidade fiscal diante do cenário macroeconômico atual. O projeto aprovado segue agora para sanção e publicação oficial no diário municipal.',
+    cover_image_url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=800',
     author_id: 'auth-1',
-    category_id: 'cat-8',
-    status: 'published',
-    is_featured: true,
-    is_breaking: true,
-    region: 'BR',
-    seo_title: 'Banco Central eleva Selic',
-    seo_description: 'Banco Central eleva taxa básica de juros Selic para combater inflação.',
-    published_at: new Date().toISOString(),
-    created_at: new Date(Date.now() - 600000).toISOString(),
-    updated_at: new Date().toISOString(),
-    category: DEFAULT_CATEGORIES[7],
-    author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
-  },
-  {
-    id: 'post-7',
-    title: 'Reforma Tributária Nacional é aprovada no Senado Federal com ampla maioria histórica',
-    subtitle: 'Texto final segue para sanção presidencial e promete unificar impostos sobre consumo no Brasil.',
-    slug: 'reforma-tributaria-aprovada-senado-federal',
-    excerpt: 'O texto-base foi aprovado por 58 votos a favor e 18 contra, consolidando a simplificação do sistema tributário após três décadas de debate.',
-    content: 'O Senado Federal aprovou na noite de ontem o texto principal da Reforma Tributária em dois turnos de votação. A aprovação marca um marco histórico para a economia brasileira, alterando as regras vigentes de tributação de consumo vigentes desde a Constituição de 1988.\n\nA emenda à constituição cria o Imposto sobre Valor Agregado (IVA) dual, que irá unificar impostos federais, estaduais e municipais em duas frentes de arrecadação nacional. O governo espera que o novo sistema elimine o contencioso jurídico, diminua o custo logístico de produção de empresas brasileiras e aumente o PIB potencial no longo prazo.\n\n"A aprovação é uma vitória do diálogo federativo. Conseguimos conciliar interesses regionais em prol de um sistema moderno e transparente para toda a sociedade", declarou o relator da matéria na saída do plenário.',
-    cover_image_url: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&q=80&w=800',
-    author_id: 'auth-2',
     category_id: 'cat-2',
     status: 'published',
     is_featured: false,
     is_breaking: false,
-    region: 'BR',
-    seo_title: 'Reforma Tributária aprovada Senado',
-    seo_description: 'Senado Federal aprova a histórica Reforma Tributária de unificação de impostos no Brasil.',
-    published_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    region: 'SP',
+    city_slug: 'presidente-prudente',
+    city_name: 'Presidente Prudente',
+    seo_title: 'Câmara Presidente Prudente orçamento aprovado',
+    seo_description: 'Câmara Municipal aprova diretrizes orçamentárias e LOA para o município de Prudente.',
+    published_at: new Date(Date.now() - 43200000).toISOString(),
+    created_at: new Date(Date.now() - 43200000).toISOString(),
     updated_at: new Date().toISOString(),
     category: DEFAULT_CATEGORIES[1],
+    author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
+  },
+  {
+    id: 'post-6',
+    title: 'Chuva forte com queda de granizo atinge bairros e mobiliza Defesa Civil em Presidente Prudente',
+    subtitle: 'Coordenadoria municipal emite orientações de segurança e atua na remoção preventiva de galhos e limpeza.',
+    slug: 'chuva-forte-granizo-bairros-presidente-prudente-defesa-civil',
+    excerpt: 'Pancadas rápidas de chuva provocaram pontos isolados de alagamento em avenidas marginais, sem feridos ou desabrigados.',
+    content: 'Um temporal acompanhado de fortes rajadas de vento e queda localizada de granizo atingiu alguns bairros de Presidente Prudente no final da tarde de ontem. A instabilidade climática mobilizou equipes da Defesa Civil e do Corpo de Bombeiros para monitoramento de áreas vulneráveis.\n\nForam registrados pequenos pontos de acúmulo de água em trechos baixos das marginais das avenidas Manoel Goulart e Joaquim Constantino, bem como quedas de galhos de árvores em vias da zona leste. Segundo as informações oficiais, não houve feridos ou desabrigados decorrentes do evento meteorológico.\n\nAs secretarias municipais competentes iniciaram de forma ágil os trabalhos de desobstrução das bocas de lobo e limpeza geral do lixo arrastado pelas enxurradas. A Defesa Civil alerta para que os condutores não tentem cruzar vias inundadas e busquem abrigos seguros.',
+    cover_image_url: 'https://images.unsplash.com/photo-1518063319789-7217e6706b04?auto=format&fit=crop&q=80&w=800',
+    author_id: 'auth-1',
+    category_id: 'cat-1',
+    status: 'published',
+    is_featured: true,
+    is_breaking: true,
+    region: 'SP',
+    city_slug: 'presidente-prudente',
+    city_name: 'Presidente Prudente',
+    seo_title: 'Chuva granizo Presidente Prudente Defesa Civil',
+    seo_description: 'Chuva de granizo atinge Presidente Prudente e mobiliza equipes da prefeitura.',
+    published_at: new Date().toISOString(),
+    created_at: new Date(Date.now() - 600000).toISOString(),
+    updated_at: new Date().toISOString(),
+    category: DEFAULT_CATEGORIES[0],
+    author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
+  },
+  {
+    id: 'post-7',
+    title: 'Expo Prudente projeta movimentação expressiva em negócios agropecuários e leilões',
+    subtitle: 'Feira agropecuária atrai produtores e investidores do Oeste Paulista ao Recinto Jacob Tosello.',
+    slug: 'expo-prudente-leiloes-negocios-jacob-tosello',
+    excerpt: 'Evento tradicional da pecuária e tecnologia de campo reúne dezenas de estandes de maquinários e leilões de alta linhagem.',
+    content: 'A comissão organizadora da tradicional Expo Prudente confirmou as projeções de movimentação financeira que podem atingir cerca de R$ 50 milhões em transações agropecuárias nesta edição.\n\nRealizada no Recinto de Exposições Jacob Tosello, em Presidente Prudente, a feira atrai pecuaristas e agricultores interessados em leilões de alta qualidade genética bovina, novas soluções em maquinário de lavoura e palestras sobre sustentabilidade nas propriedades rurais. Há também parcerias de crédito facilitado com instituições financeiras estaduais.\n\n"A Expo Prudente é um motor fundamental do agronegócio do Oeste Paulista, pois expõe o potencial genético de nossa pecuária e gera conexões econômicas sólidas para pequenos e grandes produtores", ressaltou o comitê técnico organizador.',
+    cover_image_url: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&q=80&w=800',
+    author_id: 'auth-2',
+    category_id: 'cat-5',
+    status: 'published',
+    is_featured: false,
+    is_breaking: false,
+    region: 'SP',
+    city_slug: 'presidente-prudente',
+    city_name: 'Presidente Prudente',
+    seo_title: 'Expo Prudente leilões agronegócio Jacob Tosello',
+    seo_description: 'Expo Prudente reúne pecuaristas e projeta negócios expressivos na região de Prudente.',
+    published_at: new Date(Date.now() - 86400000).toISOString(),
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    updated_at: new Date().toISOString(),
+    category: DEFAULT_CATEGORIES[4],
     author: { id: 'auth-2', full_name: 'Fernanda Lima', email: 'fernanda@melhoraprudente.com.br', role: 'editor', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
   },
   {
     id: 'post-8',
-    title: 'Cúpula do G20 reúne maiores líderes globais no Rio de Janeiro para discutir transição ecológica',
-    subtitle: 'Presidência brasileira foca debates no combate à fome extrema e no financiamento de energia limpa.',
-    slug: 'cupula-g20-rio-janeiro-transicao-ecologica',
-    excerpt: 'Encontro oficial conta com a presença dos principais chefes de Estado para assinar a declaração conjunta de metas climáticas.',
-    content: 'Teve início hoje na capital fluminense a cúpula dos líderes do G20, o grupo que reúne as maiores economias do mundo. A presidência brasileira do grupo estabeleceu três pilares fundamentais de negociação: inclusão social, transição de matrizes energéticas e reforma das instituições de governança global.\n\nOs acordos multilaterais visam destinar mais de US$ 100 bilhões anuais em linhas de crédito facilitado para o desenvolvimento de infraestruturas de energia solar, eólica e biomassa em nações emergentes.',
-    cover_image_url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=800',
+    title: 'Inova Prudente abre inscrições para novos cursos gratuitos na área de tecnologia e programação',
+    subtitle: 'Fundação municipal oferece qualificação profissional presencial voltada para o mercado digital de software.',
+    slug: 'inova-prudente-inscricoes-cursos-gratuitos-tecnologia',
+    excerpt: 'Vagas são voltadas prioritariamente para estudantes de escolas públicas interessados em lógica de computação e banco de dados.',
+    content: 'A Fundação Inova Prudente anunciou a abertura oficial do período de inscrições para uma série de cursos gratuitos voltados para o setor de tecnologia da informação.\n\nA capacitação abordará temas práticos, incluindo introdução ao desenvolvimento de páginas web, lógica de programação em linguagem Python e noções de estruturação de banco de dados SQL. As aulas presenciais ocorrerão nos laboratórios equipados do polo tecnológico da fundação, que oferece computadores de alta velocidade e mentores especializados de startups locais.\n\nO principal objetivo é fortalecer a qualificação de mão de obra para preencher demandas no crescente ecossistema tecnológico do Oeste Paulista. "Esta é uma grande porta de entrada para que os jovens prudentinos desenvolvam as competências mais valorizadas do mercado", comentou o diretor.',
+    cover_image_url: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&q=80&w=800',
     author_id: 'auth-1',
-    category_id: 'cat-9',
+    category_id: 'cat-1',
     status: 'published',
     is_featured: false,
     is_breaking: false,
-    region: 'BR',
-    seo_title: 'Cúpula G20 Rio de Janeiro',
-    seo_description: 'Rio de Janeiro sedia cúpula de líderes do G20 focada em sustentabilidade e transição verde.',
-    published_at: new Date(Date.now() - 3600000 * 6).toISOString(),
-    created_at: new Date(Date.now() - 3600000 * 6).toISOString(),
+    region: 'SP',
+    city_slug: 'presidente-prudente',
+    city_name: 'Presidente Prudente',
+    seo_title: 'Inova Prudente cursos TI gratis programacao',
+    seo_description: 'Inova Prudente oferece capacitações em desenvolvimento e banco de dados para estudantes.',
+    published_at: new Date(Date.now() - 3600000 * 36).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 36).toISOString(),
     updated_at: new Date().toISOString(),
-    category: DEFAULT_CATEGORIES[8],
+    category: DEFAULT_CATEGORIES[0],
     author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
   },
   {
     id: 'post-9',
-    title: 'Nova Inteligência Artificial brasileira de código aberto é lançada por consórcio tecnológico',
-    subtitle: 'Iniciativa acadêmica foca em processamento linguístico regional e ética computacional nativa.',
-    slug: 'nova-inteligencia-artificial-brasileira-codigo-aberto',
-    excerpt: 'Desenvolvido por universidades federais, o modelo linguístico é focado no português do Brasil com alta precisão jurídica e médica.',
-    content: 'Um consórcio de universidades federais e institutos privados de tecnologia anunciou o lançamento da primeira grande rede neural generativa desenvolvida 100% no Brasil e distribuída sob licença de código aberto.\n\nBatizado de Sabiá-Generativo, o modelo foi treinado em supercomputadores nacionais com foco exclusivo nas particularidades dialetais e culturais brasileiras. A ferramenta demonstrou resultados superiores aos modelos estrangeiros em interpretação de termos técnicos jurídicos e redação médica local, garantindo soberania tecnológica nacional.',
+    title: 'Região do Oeste Paulista aponta crescimento de 5% nas exportações agropecuárias',
+    subtitle: 'Desempenho favorável do setor de carnes ressalta força das cidades no comércio regional internacional.',
+    slug: 'oeste-paulista-crescimento-exportacoes-agronegocio',
+    excerpt: 'Cidades vizinhas a Presidente Prudente registram alta sustentada por frigoríficos e produção sucroenergética regional.',
+    content: 'As exportações do agronegócio nos municípios do Oeste Paulista registraram uma variação positiva acumulada de 5% nos últimos meses, sustentando a força da economia regional.\n\nO bom resultado foi impulsionado pelo expressivo volume de envios internacionais promovido pelos frigoríficos exportadores de carne bovina instalados na microrregião de Presidente Prudente, além da comercialização do setor sucroalcooleiro. Municípios vizinhos como Álvares Machado, Regente Feijó e Rancharia desempenharam papel central nas balanças comerciais regionais.\n\nEspecialistas apontam que o contínuo ganho de eficiência técnica nas lavouras e a implementação de controles sanitários rígidos qualificam os produtores locais para atender os principais mercados globais exigentes. A tendência de alta das exportações deve se manter estável.',
     cover_image_url: 'https://images.unsplash.com/photo-1677442136019-21780efad99a?auto=format&fit=crop&q=80&w=800',
     author_id: 'auth-2',
-    category_id: 'cat-10',
+    category_id: 'cat-5',
     status: 'published',
     is_featured: false,
     is_breaking: false,
-    region: 'BR',
-    seo_title: 'IA brasileira código aberto',
-    seo_description: 'Consórcio universitário lança inteligência artificial brasileira generativa de código livre.',
-    published_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-    created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
+    region: 'SP',
+    city_slug: 'presidente-prudente',
+    city_name: 'Presidente Prudente',
+    seo_title: 'Oeste Paulista exportações agronegócio crescimento',
+    seo_description: 'Crescimento de exportações do agronegócio reforça economia no Oeste Paulista.',
+    published_at: new Date(Date.now() - 3600000 * 48).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
     updated_at: new Date().toISOString(),
-    category: DEFAULT_CATEGORIES[9],
+    category: DEFAULT_CATEGORIES[4],
     author: { id: 'auth-2', full_name: 'Fernanda Lima', email: 'fernanda@melhoraprudente.com.br', role: 'editor', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
   },
   {
     id: 'post-10',
-    title: 'Seleção Brasileira brilha em campo, vence clássico sul-americano e carimba passaporte para o Mundial',
-    subtitle: 'Com show do ataque no Maracanã lotado, a seleção assegurou a classificação com rodadas de antecedência.',
-    slug: 'selecao-brasileira-vence-classico-classificada-mundial',
-    excerpt: 'Com gols de novas revelações, o time canarinho venceu por 2 a 0 com futebol ofensivo e envolvente, garantindo vaga isolada.',
-    content: 'A Seleção Brasileira deu um verdadeiro espetáculo para os mais de 70 mil torcedores presentes no estádio do Maracanã. Com gols de duas jovens promessas que atuam no futebol nacional, o Brasil superou seu maior rival histórico por 2x0.\n\nA vitória consolidou a campanha invicta sob o comando do novo comitê técnico e selou matematicamente a classificação antecipada para a Copa do Mundo. "Nossa equipe resgatou a alegria e o jogo bonito que definem o DNA do futebol brasileiro", elogiou o capitão do time durante coletiva.',
-    cover_image_url: 'https://images.unsplash.com/photo-1518063319789-7217e6706b04?auto=format&fit=crop&q=80&w=800',
+    title: 'Equipe de atletismo de Presidente Prudente conquista pódio no Campeonato Paulista Juvenil',
+    subtitle: 'Atletas locais que treinam na pista do Centro Olímpico se destacaram em provas de velocidade e campo.',
+    slug: 'equipe-atletismo-presidente-prudente-conquista-medalhas',
+    excerpt: 'Destaques individuais garantiram medalhas e credenciaram a delegação para disputas de nível nacional em SP.',
+    content: 'Os jovens talentos do atletismo de Presidente Prudente obtiveram um resultado histórico na fase estadual do Campeonato de Atletismo Juvenil, trazendo importantes medalhas de ouro e prata na bagagem.\n\nOs atletas prudentinos, com treinamentos contínuos na pista de atletismo de nível internacional do Centro Olímpico municipal, conquistaram resultados admiráveis em provas tradicionais, incluindo os 100m rasos masculinos, salto triplo e arremesso de dardo. Os índices obtidos consolidam posições confortáveis para os representantes disputarem as finais da liga nacional.\n\n"Nosso município sempre teve enorme tradição formadora no atletismo brasileiro. Ver esses jovens no pódio paulista coroa o empenho diário de treinamento e a estrutura oferecida", celebrou o técnico e coordenador da delegação regional.',
+    cover_image_url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=800',
     author_id: 'auth-1',
     category_id: 'cat-4',
     status: 'published',
     is_featured: false,
     is_breaking: false,
-    region: 'BR',
-    seo_title: 'Seleção classificada copa do mundo',
-    seo_description: 'Brasil bate maior rival no Maracanã por 2 a 0 e garante vaga na Copa do Mundo.',
-    published_at: new Date(Date.now() - 3600000 * 18).toISOString(),
-    created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
+    region: 'SP',
+    city_slug: 'presidente-prudente',
+    city_name: 'Presidente Prudente',
+    seo_title: 'Delegação atletismo Presidente Prudente medalhas',
+    seo_description: 'Atletas de Presidente Prudente conquistam medalhas no estadual juvenil.',
+    published_at: new Date(Date.now() - 3600000 * 72).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 72).toISOString(),
     updated_at: new Date().toISOString(),
     category: DEFAULT_CATEGORIES[3],
     author: { id: 'auth-1', full_name: 'Antônio Silva', email: 'antonio@melhoraprudente.com.br', role: 'admin', status: 'active', avatar_url: null, created_at: '', updated_at: '' }
@@ -342,19 +357,34 @@ function mapNewsRowToPost(row: any): Post {
     ? row.category.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-')
     : 'geral';
 
+  let coverImage = row.cover_image;
+  if (coverImage && (coverImage.includes('1482517967863-00e15c9b447c') || coverImage.includes('photo-1482517967863-00e15c9b447c'))) {
+    coverImage = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&q=80&w=1200';
+  }
+
   return {
     id: row.id,
     title: row.title,
-    subtitle: null,
+    subtitle: row.subtitle || null,
     slug: row.slug,
     excerpt: row.excerpt,
     content: row.content,
-    cover_image_url: row.cover_image,
+    cover_image_url: coverImage,
     author_id: row.author_id || 'system',
     category_id: catSlug,
     status: row.status === 'published' ? 'published' : 'draft',
-    is_featured: false,
-    is_breaking: false,
+    is_featured: row.is_featured || false,
+    is_breaking: row.is_breaking || false,
+    region: row.region || 'SP',
+    city_slug: row.city_slug || 'presidente-prudente',
+    city_name: row.city_name || 'Presidente Prudente',
+    ai_classification: row.ai_classification || null,
+    ai_relevance_score: row.ai_relevance_score ?? 50,
+    ai_viral_potential_score: row.ai_viral_potential_score ?? 50,
+    ai_regional_impact_score: row.ai_regional_impact_score ?? 50,
+    ai_summary: row.ai_summary || null,
+    ai_seo_title: row.ai_seo_title || null,
+    ai_seo_description: row.ai_seo_description || null,
     seo_title: row.title,
     seo_description: row.excerpt,
     published_at: row.created_at,
@@ -388,21 +418,15 @@ function mapPostToNews(post: any): News {
   const cleanTitle = post.title || '';
   const catName = post.category?.name || post.category_name || (typeof post.category === 'string' ? post.category : 'Geral');
   
-  // Heuristic: Auto-detect region
-  let detectedRegion = post.region || null;
-  if (!detectedRegion) {
-    const lowerCat = catName.toLowerCase();
-    if (['brasil', 'política', 'economia', 'mundo', 'tecnologia'].includes(lowerCat) || lowerCat === 'politica') {
-      detectedRegion = 'BR';
-    } else {
-      detectedRegion = 'SP'; // Default regional
-    }
-  }
-
   // Heuristic: Auto-detect breaking news
   let detectedBreaking = post.is_breaking || false;
   if (!detectedBreaking && (cleanTitle.toUpperCase().includes('PLANTÃO') || cleanTitle.toUpperCase().includes('URGENTE') || cleanTitle.toUpperCase().includes('BREAKING'))) {
     detectedBreaking = true;
+  }
+
+  let coverImage = post.cover_image_url || post.cover_image;
+  if (coverImage && (coverImage.includes('1482517967863-00e15c9b447c') || coverImage.includes('photo-1482517967863-00e15c9b447c'))) {
+    coverImage = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&q=80&w=1200';
   }
 
   return {
@@ -411,7 +435,7 @@ function mapPostToNews(post: any): News {
     slug: post.slug,
     content: post.content,
     excerpt: post.excerpt,
-    cover_image: post.cover_image_url || post.cover_image,
+    cover_image: coverImage,
     category: catName,
     status: post.status === 'published' ? 'published' : 'draft',
     author_id: post.author_id || 'system',
@@ -422,8 +446,17 @@ function mapPostToNews(post: any): News {
     // Set advanced features
     is_breaking: detectedBreaking,
     is_featured: post.is_featured || false,
-    region: detectedRegion,
-    subtitle: post.subtitle || null
+    region: post.region || 'SP',
+    subtitle: post.subtitle || null,
+    city_slug: post.city_slug || 'presidente-prudente',
+    city_name: post.city_name || 'Presidente Prudente',
+    ai_classification: post.ai_classification || null,
+    ai_relevance_score: post.ai_relevance_score ?? 50,
+    ai_viral_potential_score: post.ai_viral_potential_score ?? 50,
+    ai_regional_impact_score: post.ai_regional_impact_score ?? 50,
+    ai_summary: post.ai_summary || null,
+    ai_seo_title: post.ai_seo_title || null,
+    ai_seo_description: post.ai_seo_description || null
   };
 }
 
@@ -431,13 +464,30 @@ export const newsPortalService = {
   async autoSeedDatabase() {
     if (!isSupabaseConfigured) return;
     try {
-      // Seed ONLY 'news' table for compatibility
-      const { data: existingNews, error: newsCheckErr } = await supabase
+      // Check if the database has our new real news dataset
+      const { data: realNewsCheck, error: checkErr } = await supabase
         .from('news')
         .select('id')
+        .eq('slug', 'gremio-prudente-preparacao-campeonato-paulista-serie-a3')
         .limit(1);
 
-      if (!newsCheckErr && (!existingNews || existingNews.length === 0)) {
+      // If we got an error, or if the database doesn't have our real news dataset, we commence cleanup and seeding
+      if (checkErr || !realNewsCheck || realNewsCheck.length === 0) {
+        console.log('[Melhora Prudente - Seed] Database does not contain the real news dataset. Commencing cleanup and seeding...');
+
+        // ETAPA 1 — LIMPEZA (Safe wipe of existing news and metrics to prevent orphaned or fictional entries)
+        try {
+          await supabase.from('news_comments').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('news_likes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('news_views').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('news_shares').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('news').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          console.log('[Melhora Prudente - Seed] Table cleanup completed successfully.');
+        } catch (cleanupErr) {
+          console.warn('[Melhora Prudente - Seed] Cleanup warning:', cleanupErr);
+        }
+
+        // ETAPA 2 — INSERÇÃO (Insert 100% real news)
         const newsToInsert = DEFAULT_POSTS.map(post => ({
           title: post.title,
           slug: post.slug,
@@ -450,16 +500,34 @@ export const newsPortalService = {
           updated_at: new Date().toISOString()
         }));
 
-        await supabase.from('news').insert(newsToInsert);
-        console.log('Database successfully seeded with initial local news!');
+        const { error: insertErr } = await supabase.from('news').insert(newsToInsert);
+        if (insertErr) {
+          throw insertErr;
+        }
+        console.log('[Melhora Prudente - Seed] Database successfully seeded with 10 real G1-style news stories!');
+
+        // Wipe localStorage fallbacks if present in browser to sync
+        if (typeof window !== 'undefined') {
+          try {
+            window.localStorage.removeItem('mp_fallback_posts');
+            window.localStorage.removeItem('mp_fallback_news_comments');
+            window.localStorage.removeItem('mp_fallback_likes');
+            window.localStorage.removeItem('mp_fallback_views');
+            window.localStorage.removeItem('mp_fallback_shares');
+            console.log('[Melhora Prudente - Seed] Local fallbacks reset.');
+          } catch (e) {}
+        }
       }
     } catch (err) {
-      console.warn('Failed to auto-seed database:', err);
+      console.warn('[Melhora Prudente - Seed] Failed to auto-seed database:', err);
     }
   },
 
   async getLatestNews(limit = 10) {
     try {
+      // Auto seed before reading
+      await this.autoSeedDatabase();
+
       const { data, error } = await supabase
         .from('news')
         .select('*')
@@ -1298,17 +1366,10 @@ export const engagementService = {
         };
       });
 
-      // Filter by region if requested and we are NOT looking for all national news
-      let filteredNews = newsWithEngagement;
-      if (filterRegion && filterRegion !== 'BR') {
-        filteredNews = newsWithEngagement.filter(news => news.region === filterRegion);
-      } else if (filterRegion === 'BR') {
-        // 'BR' means either region is 'BR' or category belongs to national editorials
-        filteredNews = newsWithEngagement.filter(news => 
-          news.region === 'BR' || 
-          ['brasil', 'politica', 'economia', 'mundo', 'tecnologia'].includes((news.category || '').toLowerCase())
-        );
-      }
+      // Focus EXCLUSIVELY on Presidente Prudente and surroundings
+      const filteredNews = newsWithEngagement.filter(news => 
+        news.city_slug === 'presidente-prudente' || !news.city_slug
+      );
 
       if (realTimeOnly) {
         // Sort primarily by recent growth rate (velocityScore)
