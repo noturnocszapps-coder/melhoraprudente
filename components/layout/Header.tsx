@@ -2,11 +2,13 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Menu, Search, User, Bell, LogOut, LayoutDashboard, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 
 export const Header = () => {
+  const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
   const { user, profile, signOut, isAdmin, isEditor } = useAuth();
@@ -15,6 +17,10 @@ export const Header = () => {
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  if (pathname?.startsWith('/admin')) {
+    return null;
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white border-b border-zinc-200 shadow-sm">
@@ -92,7 +98,7 @@ export const Header = () => {
                           className="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-zinc-700 hover:bg-zinc-50 hover:text-red-600 transition-colors"
                         >
                           <LayoutDashboard size={18} />
-                          Painel Admin
+                          Painel Administrativo
                         </Link>
                       )}
                       
@@ -175,7 +181,7 @@ export const Header = () => {
                         onClick={() => setIsMenuOpen(false)}
                       >
                         <LayoutDashboard size={20} />
-                        Painel Admin
+                        Painel Administrativo
                       </Link>
                     )}
 

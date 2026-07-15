@@ -32,39 +32,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+  useEffect(() => {
+    let isMounted = true;
+    let lastFetchedUserId: string | null = null;
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // Profile not found, maybe it's still being created by the trigger
-          console.warn('Profile not found for user:', userId);
+    const fetchProfileData = async (userId: string) => {
+      if (lastFetchedUserId === userId) return;
+      lastFetchedUserId = userId;
+
+      if (isMounted) {
+        setLoading(true);
+      }
+
+      try {
+        console.log('useAuth: Iniciando busca do perfil para o ID:', userId);
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (error) {
+          console.error('useAuth: Erro técnico ao buscar perfil do banco de dados:', error);
+          if (isMounted) {
+            setProfile(null);
+          }
         } else {
-          throw error;
+          console.log('useAuth: Perfil carregado com sucesso:', data);
+          if (isMounted) {
+            setProfile(data);
+          }
+        }
+      } catch (err) {
+        console.error('useAuth: Erro inesperado ao obter perfil:', err);
+        if (isMounted) {
+          setProfile(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
         }
       }
-      setProfile(data);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  useEffect(() => {
-    // Get initial session
     const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-      } else {
-        setLoading(false);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+
+        if (currentUser) {
+          await fetchProfileData(currentUser.id);
+        } else {
+          setProfile(null);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('useAuth: Erro na inicialização da autenticação:', err);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -72,18 +101,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('useAuth: Mudança de estado da autenticação detectada. Evento:', event);
+      if (!isMounted) return;
+
       const currentUser = session?.user ?? null;
       setUser(currentUser);
-      
+
       if (currentUser) {
-        await fetchProfile(currentUser.id);
+        await fetchProfileData(currentUser.id);
       } else {
+        lastFetchedUserId = null;
         setProfile(null);
         setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
