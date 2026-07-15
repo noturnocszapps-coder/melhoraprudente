@@ -39,7 +39,7 @@ const DEFAULT_POSTS: Post[] = [
     slug: 'gremio-prudente-preparacao-campeonato-paulista-serie-a3',
     excerpt: 'Elenco carcará foca no aprimoramento físico e organização tática coletiva visando a estreia oficial na competição paulista.',
     content: 'O Grêmio Prudente segue em ritmo acelerado em sua preparação de pré-temporada para a disputa do Campeonato Paulista da Série A3. Os treinamentos ocorrem diariamente no Estádio Municipal Paulo Constantino, o Prudentão, com sessões em dois períodos dedicadas ao aprimoramento tático, técnico e de condicionamento de força.\n\nA diretoria do clube confirmou a chegada de novos reforços pontuais para compor o grupo de atletas, incluindo peças de meio-campo experientes do interior de São Paulo. A comissão técnica ressalta que o foco inicial está em consolidar os padrões de jogo ofensivos e a solidez defensiva coletiva.\n\n"Nosso objetivo é colocar o Grêmio Prudente em condições plenas de disputar a liderança e buscar o acesso. Sabemos que a Série A3 é uma competição extremamente competitiva e física, por isso cada sessão de treino no Prudentão é decisiva", afirmou o treinador em entrevista coletiva.',
-    cover_image_url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=800',
+    cover_image_url: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=800',
     author_id: 'auth-1',
     category_id: 'cat-4',
     status: 'published',
@@ -255,7 +255,7 @@ const DEFAULT_POSTS: Post[] = [
     slug: 'equipe-atletismo-presidente-prudente-conquista-medalhas',
     excerpt: 'Destaques individuais garantiram medalhas e credenciaram a delegação para disputas de nível nacional em SP.',
     content: 'Os jovens talentos do atletismo de Presidente Prudente obtiveram um resultado histórico na fase estadual do Campeonato de Atletismo Juvenil, trazendo importantes medalhas de ouro e prata na bagagem.\n\nOs atletas prudentinos, com treinamentos contínuos na pista de atletismo de nível internacional do Centro Olímpico municipal, conquistaram resultados admiráveis em provas tradicionais, incluindo os 100m rasos masculinos, salto triplo e arremesso de dardo. Os índices obtidos consolidam posições confortáveis para os representantes disputarem as finais da liga nacional.\n\n"Nosso município sempre teve enorme tradição formadora no atletismo brasileiro. Ver esses jovens no pódio paulista coroa o empenho diário de treinamento e a estrutura oferecida", celebrou o técnico e coordenador da delegação regional.',
-    cover_image_url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=800',
+    cover_image_url: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=800',
     author_id: 'auth-1',
     category_id: 'cat-4',
     status: 'published',
@@ -461,72 +461,9 @@ function mapPostToNews(post: any): News {
 }
 
 export const newsPortalService = {
-  async autoSeedDatabase() {
-    if (!isSupabaseConfigured) return;
-    try {
-      // Check if the database has our new real news dataset
-      const { data: realNewsCheck, error: checkErr } = await supabase
-        .from('news')
-        .select('id')
-        .eq('slug', 'gremio-prudente-preparacao-campeonato-paulista-serie-a3')
-        .limit(1);
-
-      // If we got an error, or if the database doesn't have our real news dataset, we commence cleanup and seeding
-      if (checkErr || !realNewsCheck || realNewsCheck.length === 0) {
-        console.log('[Melhora Prudente - Seed] Database does not contain the real news dataset. Commencing cleanup and seeding...');
-
-        // ETAPA 1 — LIMPEZA (Safe wipe of existing news and metrics to prevent orphaned or fictional entries)
-        try {
-          await supabase.from('news_comments').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-          await supabase.from('news_likes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-          await supabase.from('news_views').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-          await supabase.from('news_shares').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-          await supabase.from('news').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-          console.log('[Melhora Prudente - Seed] Table cleanup completed successfully.');
-        } catch (cleanupErr) {
-          console.warn('[Melhora Prudente - Seed] Cleanup warning:', cleanupErr);
-        }
-
-        // ETAPA 2 — INSERÇÃO (Insert 100% real news)
-        const newsToInsert = DEFAULT_POSTS.map(post => ({
-          title: post.title,
-          slug: post.slug,
-          content: post.content,
-          excerpt: post.excerpt || '',
-          cover_image: post.cover_image_url || null,
-          category: post.category?.name || 'Geral',
-          status: 'published',
-          created_at: post.created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }));
-
-        const { error: insertErr } = await supabase.from('news').insert(newsToInsert);
-        if (insertErr) {
-          throw insertErr;
-        }
-        console.log('[Melhora Prudente - Seed] Database successfully seeded with 10 real G1-style news stories!');
-
-        // Wipe localStorage fallbacks if present in browser to sync
-        if (typeof window !== 'undefined') {
-          try {
-            window.localStorage.removeItem('mp_fallback_posts');
-            window.localStorage.removeItem('mp_fallback_news_comments');
-            window.localStorage.removeItem('mp_fallback_likes');
-            window.localStorage.removeItem('mp_fallback_views');
-            window.localStorage.removeItem('mp_fallback_shares');
-            console.log('[Melhora Prudente - Seed] Local fallbacks reset.');
-          } catch (e) {}
-        }
-      }
-    } catch (err) {
-      console.warn('[Melhora Prudente - Seed] Failed to auto-seed database:', err);
-    }
-  },
-
   async getLatestNews(limit = 10) {
     try {
-      // Auto seed before reading
-      await this.autoSeedDatabase();
+      // Auto seed desativado para evitar manipulações não intencionais do banco de dados em fluxos de leitura.
 
       const { data, error } = await supabase
         .from('news')
@@ -1021,17 +958,42 @@ export const engagementService = {
   },
 
   // --- COMMENTS ---
-  async getComments(newsId: string): Promise<NewsComment[]> {
+  async getComments(newsId: string, currentUserId?: string): Promise<NewsComment[]> {
     try {
+      // Buscar comentários com o perfil do usuário para saber a role do autor
       const { data, error } = await supabase
         .from('news_comments')
-        .select('*')
+        .select('*, user:profiles(full_name, avatar_url, role)')
         .eq('news_id', newsId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
       
-      const flatComments = (data || []).map(comment => ({
+      // Determinar a role do usuário logado se houver currentUserId
+      let currentUserRole = 'user';
+      if (currentUserId) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', currentUserId)
+          .maybeSingle();
+        if (profileData) {
+          currentUserRole = profileData.role;
+        }
+      }
+
+      // Filtrar os comentários:
+      // - Admins e Editores veem tudo
+      // - Comentários aprovados são visíveis para todos
+      // - Comentários pendentes são visíveis apenas para o próprio autor
+      const filteredComments = (data || []).filter(comment => {
+        if (currentUserRole === 'admin' || currentUserRole === 'editor') return true;
+        if (comment.status === 'approved') return true;
+        if (currentUserId && comment.user_id === currentUserId) return true;
+        return false;
+      });
+
+      const flatComments = filteredComments.map(comment => ({
         ...comment,
         user: comment.user || getLocalProfile(comment.user_id)
       })) as NewsComment[];
@@ -1040,7 +1002,7 @@ export const engagementService = {
       console.warn('Local fallback for getComments:', err);
       const localComments = getStoredData<any[]>('mp_fallback_news_comments', []);
       const filtered = localComments
-        .filter(c => c.news_id === newsId)
+        .filter(c => c.news_id === newsId && (c.status === 'approved' || (currentUserId && c.user_id === currentUserId)))
         .map(c => ({
           ...c,
           user: c.user || getLocalProfile(c.user_id)
@@ -1074,13 +1036,44 @@ export const engagementService = {
 
   async createComment(newsId: string, userId: string, content: string, parentId: string | null = null): Promise<NewsComment> {
     try {
+      // 1. Verificar se o usuário está suspenso ou bloqueado
+      const { data: userProfile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('status')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (profileErr) throw profileErr;
+      if (userProfile && (userProfile.status === 'suspended' || userProfile.status === 'blocked')) {
+        throw new Error('Sua conta está suspensa ou bloqueada. Você não tem permissão para enviar comentários.');
+      }
+
+      // 2. Se for resposta, verificar se o comentário pai existe e se não está rejeitado
+      if (parentId) {
+        const { data: parentComment, error: parentErr } = await supabase
+          .from('news_comments')
+          .select('status')
+          .eq('id', parentId)
+          .maybeSingle();
+
+        if (parentErr) throw parentErr;
+        if (!parentComment) {
+          throw new Error('O comentário original não foi encontrado.');
+        }
+        if (parentComment.status === 'rejected') {
+          throw new Error('Não é possível responder a um comentário rejeitado.');
+        }
+      }
+
+      // 3. Inserir comentário com status 'pending'
       const { data, error } = await supabase
         .from('news_comments')
         .insert({
           news_id: newsId,
           user_id: userId,
           parent_id: parentId,
-          content: content.trim()
+          content: content.trim(),
+          status: 'pending' // Forçar status pendente para moderação administrativa
         })
         .select('*')
         .single();
@@ -1090,22 +1083,9 @@ export const engagementService = {
         ...data,
         user: getLocalProfile(userId)
       } as NewsComment;
-    } catch (err) {
-      console.warn('Local fallback for createComment:', err);
-      const localComments = getStoredData<any[]>('mp_fallback_news_comments', []);
-      const userProfile = getLocalProfile(userId);
-      const newComment: any = {
-        id: `comment-${Date.now()}`,
-        news_id: newsId,
-        user_id: userId,
-        parent_id: parentId,
-        content: content.trim(),
-        created_at: new Date().toISOString(),
-        user: userProfile
-      };
-      localComments.push(newComment);
-      setStoredData('mp_fallback_news_comments', localComments);
-      return newComment;
+    } catch (err: any) {
+      console.warn('Error in createComment:', err);
+      throw err; // Propagar erro real para exibição controlada na UI
     }
   },
 
@@ -1288,10 +1268,21 @@ export const engagementService = {
 
       if (isSupabaseConfigured) {
         try {
-          const { data: dbLikes, error: likesErr } = await supabase.from('news_likes').select('*');
-          const { data: dbComments, error: commentsErr } = await supabase.from('news_comments').select('*');
-          const { data: dbViews, error: viewsErr } = await supabase.from('news_views').select('*');
-          const { data: dbShares, error: sharesErr } = await supabase.from('news_shares').select('*');
+          const [likesRes, commentsRes, viewsRes, sharesRes] = await Promise.all([
+            supabase.from('news_likes').select('*'),
+            supabase.from('news_comments').select('*'),
+            supabase.from('news_views').select('*'),
+            supabase.from('news_shares').select('*')
+          ]);
+
+          const dbLikes = likesRes.data;
+          const likesErr = likesRes.error;
+          const dbComments = commentsRes.data;
+          const commentsErr = commentsRes.error;
+          const dbViews = viewsRes.data;
+          const viewsErr = viewsRes.error;
+          const dbShares = sharesRes.data;
+          const sharesErr = sharesRes.error;
           
           if (!likesErr && dbLikes) {
             likesList = dbLikes;

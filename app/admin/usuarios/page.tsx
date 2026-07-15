@@ -94,41 +94,62 @@ export default function AdminUsers() {
 
       // 2. Fetch comments count
       let comments: any[] = [];
+      let commentsErrorOccurred = false;
       try {
         const { data, error } = await supabase
-          .from('comments')
-          .select('id, user_id');
-        if (!error && data) {
+          .from('news_comments')
+          .select('id, user_id, status');
+        if (error) throw error;
+        if (data) {
           comments = data;
         }
-      } catch (e) {
-        console.warn('Could not fetch comments count, using fallback', e);
+      } catch (e: any) {
+        console.warn('Could not fetch comments count from news_comments:', e.message || e);
+        commentsErrorOccurred = true;
       }
       
       // 3. Fetch news count
       let newsItems: any[] = [];
+      let newsErrorOccurred = false;
       try {
         const { data, error } = await supabase
           .from('news')
           .select('id, author_id');
-        if (!error && data) {
+        if (error) throw error;
+        if (data) {
           newsItems = data;
         }
-      } catch (e) {
-        console.warn('Could not fetch news count, using fallback', e);
+      } catch (e: any) {
+        console.warn('Could not fetch news count:', e.message || e);
+        newsErrorOccurred = true;
       }
 
       const countsComments: Record<string, number> = {};
-      comments.forEach(c => {
-        countsComments[c.user_id] = (countsComments[c.user_id] || 0) + 1;
-      });
+      if (commentsErrorOccurred) {
+        profiles?.forEach(u => {
+          countsComments[u.id] = -1; // Sinalizador especial de consulta indisponível
+        });
+      } else {
+        comments.forEach(c => {
+          // Contamos preferencialmente os comentários aprovados ('approved')
+          if (c.status === 'approved') {
+            countsComments[c.user_id] = (countsComments[c.user_id] || 0) + 1;
+          }
+        });
+      }
 
       const countsPosts: Record<string, number> = {};
-      newsItems.forEach(p => {
-        if (p.author_id) {
-          countsPosts[p.author_id] = (countsPosts[p.author_id] || 0) + 1;
-        }
-      });
+      if (newsErrorOccurred) {
+        profiles?.forEach(u => {
+          countsPosts[u.id] = -1; // Sinalizador especial de consulta indisponível
+        });
+      } else {
+        newsItems.forEach(p => {
+          if (p.author_id) {
+            countsPosts[p.author_id] = (countsPosts[p.author_id] || 0) + 1;
+          }
+        });
+      }
 
       setCommentCounts(countsComments);
       setPostCounts(countsPosts);
@@ -551,19 +572,19 @@ export default function AdminUsers() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <span 
-                            title="Comentários"
+                            title="Comentários APROVADOS enviados pelo usuário"
                             className="flex items-center gap-1 px-2 py-0.5 bg-zinc-100 text-zinc-600 rounded text-xs font-semibold"
                           >
                             <MessageSquare size={12} className="text-zinc-400" />
-                            {commentsCountNum}
+                            {commentsCountNum === -1 ? 'Indisponível' : `${commentsCountNum} aprovados`}
                           </span>
                           {user.role !== 'user' && (
                             <span 
-                              title="Notícias Publicadas"
+                              title="Total de matérias/notícias criadas por este autor (incluindo rascunhos)"
                               className="flex items-center gap-1 px-2 py-0.5 bg-zinc-100 text-zinc-600 rounded text-xs font-semibold"
                             >
                               <FileText size={12} className="text-zinc-400" />
-                              {postsCountNum}
+                              {postsCountNum === -1 ? 'Indisponível' : `${postsCountNum} criadas`}
                             </span>
                           )}
                         </div>
@@ -667,17 +688,25 @@ export default function AdminUsers() {
             {/* Detailed Stats Cards */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-zinc-50 p-4 rounded-xl text-center">
-                <p className="text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">Comentários</p>
-                <p className="text-lg font-black text-zinc-900">{commentCounts[selectedUser.id] || 0}</p>
+                <p className="text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">Comentários Aprovados</p>
+                <p className="text-lg font-black text-zinc-900">
+                  {commentCounts[selectedUser.id] === -1 ? 'Indisponível' : (commentCounts[selectedUser.id] || 0)}
+                </p>
                 <p className="text-[10px] text-zinc-500 mt-1">
-                  {(commentCounts[selectedUser.id] || 0) > 0 ? 'Participação ativa' : 'Nenhuma participação'}
+                  {commentCounts[selectedUser.id] === -1 
+                    ? 'Falha na consulta' 
+                    : (commentCounts[selectedUser.id] || 0) > 0 ? 'Participação ativa' : 'Nenhum aprovado'}
                 </p>
               </div>
               <div className="bg-zinc-50 p-4 rounded-xl text-center">
-                <p className="text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">Notícias Publicadas</p>
-                <p className="text-lg font-black text-zinc-900">{postCounts[selectedUser.id] || 0}</p>
+                <p className="text-[10px] font-black uppercase tracking-wider text-zinc-400 mb-1">Matérias Criadas</p>
+                <p className="text-lg font-black text-zinc-900">
+                  {postCounts[selectedUser.id] === -1 ? 'Indisponível' : (postCounts[selectedUser.id] || 0)}
+                </p>
                 <p className="text-[10px] text-zinc-500 mt-1">
-                  {selectedUser.role === 'user' ? 'Apenas leitores' : `${postCounts[selectedUser.id] || 0} matérias`}
+                  {postCounts[selectedUser.id] === -1 
+                    ? 'Falha na consulta' 
+                    : selectedUser.role === 'user' ? 'Apenas leitor' : `${postCounts[selectedUser.id] || 0} criadas`}
                 </p>
               </div>
             </div>

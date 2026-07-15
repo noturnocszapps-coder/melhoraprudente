@@ -1,8 +1,9 @@
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
-import { Calendar, User, Share2, MessageCircle, ArrowLeft, Heart, MessageSquare } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { Calendar, User, Share2, MessageCircle, ArrowLeft, Heart, MessageSquare, ChevronRight, Clock } from 'lucide-react';
+import { formatDate, sanitizeHtml } from '@/lib/utils';
 import { newsPortalService } from '@/services';
 import { Metadata } from 'next';
 import { News } from '@/types';
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const newsItem = await newsPortalService.getNewsBySlug(slug);
     if (!newsItem) return { title: 'Notícia não encontrada | Melhora Prudente' };
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://melhoraprudente.com.br';
+    const baseUrl = 'https://melhoraprudente.com.br';
 
     return {
       title: `${newsItem.title} | Melhora Prudente`,
@@ -34,17 +35,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       openGraph: {
         title: newsItem.title,
         description: newsItem.excerpt || newsItem.title,
-        images: newsItem.cover_image ? [newsItem.cover_image] : [],
+        images: newsItem.cover_image ? [newsItem.cover_image] : ["https://images.unsplash.com/photo-1449034446853-66c86144b0ad?auto=format&fit=crop&q=80&w=1200&h=630"],
         type: 'article',
         publishedTime: newsItem.created_at,
-        authors: newsItem.author?.full_name ? [newsItem.author.full_name] : ['Redação'],
+        modifiedTime: newsItem.updated_at || newsItem.created_at,
+        authors: newsItem.author?.full_name ? [newsItem.author.full_name] : ['Redação Melhora Prudente'],
         section: newsItem.category,
       },
       twitter: {
         card: 'summary_large_image',
         title: newsItem.title,
         description: newsItem.excerpt || newsItem.title,
-        images: newsItem.cover_image ? [newsItem.cover_image] : [],
+        images: newsItem.cover_image ? [newsItem.cover_image] : ["https://images.unsplash.com/photo-1449034446853-66c86144b0ad?auto=format&fit=crop&q=80&w=1200&h=630"],
       }
     };
   } catch (error) {
@@ -69,19 +71,65 @@ export default async function NewsDetailPage({ params }: Props) {
 
   if (!newsItem) return notFound();
 
+  // Dynamic reading time calculation (approx 200 words per minute)
+  const wordCount = newsItem.content ? newsItem.content.split(/\s+/).length : 0;
+  const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": `https://melhoraprudente.com.br/noticia/${newsItem.slug}`
+    },
     "headline": newsItem.title,
     "description": newsItem.excerpt || newsItem.title,
-    "image": newsItem.cover_image ? [newsItem.cover_image] : [],
+    "image": newsItem.cover_image ? [newsItem.cover_image] : ["https://images.unsplash.com/photo-1449034446853-66c86144b0ad?auto=format&fit=crop&q=80&w=1200&h=630"],
     "datePublished": newsItem.created_at,
     "dateModified": newsItem.updated_at || newsItem.created_at,
     "author": [{
       "@type": "Person",
       "name": newsItem.author?.full_name || "Redação",
-      "url": `${process.env.NEXT_PUBLIC_APP_URL || ''}/`
-    }]
+      "url": "https://melhoraprudente.com.br"
+    }],
+    "publisher": {
+      "@type": "NewsMediaOrganization",
+      "name": "Melhora Prudente",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://images.unsplash.com/photo-1449034446853-66c86144b0ad?auto=format&fit=crop&q=80&w=192&h=192"
+      }
+    },
+    "timeRequired": `PT${readingTime}M`,
+    "contentLocation": {
+      "@type": "AdministrativeArea",
+      "name": "Presidente Prudente, SP, Brasil"
+    }
+  };
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://melhoraprudente.com.br"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": newsItem.category || "Geral",
+        "item": `https://melhoraprudente.com.br/categoria/${newsItem.category?.toLowerCase() || "geral"}`
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": newsItem.title,
+        "item": `https://melhoraprudente.com.br/noticia/${newsItem.slug}`
+      }
+    ]
   };
 
   return (
@@ -91,19 +139,39 @@ export default async function NewsDetailPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       
       {/* Detail Header / Top breadcrumb and title */}
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
+          {/* Breadcrumbs */}
+          <div className="flex flex-wrap items-center gap-2 text-zinc-500 text-xs font-bold uppercase tracking-wider mb-6">
+            <Link href="/" className="hover:text-red-600 transition-colors">Home</Link>
+            <ChevronRight size={12} className="text-zinc-300" />
+            <Link href={`/categoria/${newsItem.category?.toLowerCase() || 'geral'}`} className="hover:text-red-600 transition-colors">{newsItem.category || 'Geral'}</Link>
+            <ChevronRight size={12} className="text-zinc-300" />
+            <span className="text-zinc-400 truncate max-w-[200px] md:max-w-[400px]">{newsItem.title}</span>
+          </div>
+
           <Link href="/" className="inline-flex items-center gap-2 text-zinc-500 hover:text-red-600 font-bold text-sm mb-8 transition-colors group">
             <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
             Voltar para o Portal
           </Link>
 
           <div className="space-y-6">
-            <span className="inline-block bg-red-600 text-white text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md shadow-red-600/15">
-              {newsItem.category || 'Geral'}
-            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-block bg-red-600 text-white text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md shadow-red-600/15">
+                {newsItem.category || 'Geral'}
+              </span>
+              <div className="flex items-center gap-1.5 text-zinc-500 text-xs font-bold bg-zinc-100 px-3 py-1.5 rounded-full">
+                <Clock size={12} className="text-zinc-400" />
+                <span>Leitura: {readingTime} min</span>
+              </div>
+              <span className="text-xs font-bold text-zinc-500 uppercase bg-zinc-100 px-3 py-1.5 rounded-full">📍 Presidente Prudente</span>
+            </div>
             
             <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-zinc-900 leading-none tracking-tighter">
               {newsItem.title}
@@ -117,9 +185,15 @@ export default async function NewsDetailPage({ params }: Props) {
 
             <div className="flex flex-wrap items-center gap-6 pt-6 border-t border-zinc-100">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center overflow-hidden border border-zinc-200 shadow-inner">
+                <div className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center overflow-hidden border border-zinc-200 shadow-inner relative">
                   {newsItem.author?.avatar_url ? (
-                    <img src={newsItem.author.avatar_url} alt={newsItem.author.full_name || ''} className="w-full h-full object-cover" />
+                    <Image 
+                      src={newsItem.author.avatar_url} 
+                      alt={newsItem.author.full_name || ''} 
+                      fill
+                      sizes="48px"
+                      className="object-cover" 
+                    />
                   ) : (
                     <User size={22} className="text-zinc-400" />
                   )}
@@ -141,11 +215,14 @@ export default async function NewsDetailPage({ params }: Props) {
       {/* Featured Cover Image */}
       {newsItem.cover_image && (
         <div className="container mx-auto px-4 mb-12">
-          <div className="max-w-4xl mx-auto aspect-[16/9] overflow-hidden rounded-[2.5rem] bg-zinc-100 shadow-xl shadow-zinc-200/40 border border-zinc-100">
-            <img 
+          <div className="max-w-4xl mx-auto aspect-[16/9] overflow-hidden rounded-[2.5rem] bg-zinc-100 shadow-xl shadow-zinc-200/40 border border-zinc-100 relative">
+            <Image 
               src={newsItem.cover_image} 
               alt={newsItem.title}
-              className="w-full h-full object-cover"
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 1200px"
+              className="object-cover"
               referrerPolicy="no-referrer"
             />
           </div>
@@ -160,7 +237,7 @@ export default async function NewsDetailPage({ params }: Props) {
           <div className="lg:col-span-8 space-y-12">
             <div 
               className="prose prose-zinc prose-lg max-w-none prose-headings:font-black prose-headings:tracking-tighter prose-p:leading-relaxed prose-p:text-zinc-800 prose-p:font-medium prose-a:text-red-600 prose-img:rounded-3xl prose-blockquote:border-red-600 prose-blockquote:bg-zinc-50 prose-blockquote:py-2 prose-blockquote:px-6 prose-blockquote:rounded-r-2xl whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{ __html: newsItem.content }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(newsItem.content) }}
             />
 
             {/* Inline Ad slot */}

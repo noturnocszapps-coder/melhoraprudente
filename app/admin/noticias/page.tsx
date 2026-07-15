@@ -39,35 +39,11 @@ export default function NewsList() {
 
       setNewsList(mapped as any[]);
     } catch (error: any) {
-      console.warn('Error fetching news from Supabase, loading from local cache:', error);
-      const local = getStoredNewsList();
-      setNewsList(local);
+      console.warn('Error fetching news from Supabase:', error);
+      alert('Erro ao carregar notícias do banco de dados: ' + (error.message || error));
     } finally {
       setLoading(false);
     }
-  };
-
-  const getStoredNewsList = () => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const item = window.localStorage.getItem('mp_fallback_posts');
-      if (item) {
-        const posts = JSON.parse(item);
-        return posts.map((post: any) => ({
-          id: post.id,
-          title: post.title,
-          slug: post.slug,
-          excerpt: post.excerpt,
-          category: post.category?.name || post.category_name || 'Geral',
-          status: post.status === 'published' ? 'published' : 'draft',
-          author: post.author || { full_name: 'Antônio Silva' },
-          created_at: post.created_at
-        }));
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return [];
   };
 
   const handleDelete = async (id: string) => {
@@ -77,21 +53,10 @@ export default function NewsList() {
       const { error } = await supabase.from('news').delete().eq('id', id);
       if (error) throw error;
       setNewsList(prev => prev.filter(n => n.id !== id));
+      alert('Notícia excluída com sucesso do banco de dados.');
     } catch (error: any) {
-      console.warn('Error deleting news from Supabase, attempting local delete:', error);
-      if (typeof window !== 'undefined') {
-        try {
-          const item = window.localStorage.getItem('mp_fallback_posts');
-          if (item) {
-            const posts = JSON.parse(item);
-            const filtered = posts.filter((p: any) => p.id !== id);
-            window.localStorage.setItem('mp_fallback_posts', JSON.stringify(filtered));
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      setNewsList(prev => prev.filter(n => n.id !== id));
+      console.warn('Error deleting news from Supabase:', error);
+      alert('Erro ao excluir notícia: ' + (error.message || error));
     }
   };
 

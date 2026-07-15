@@ -1,6 +1,8 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { cn, formatDate } from '@/lib/utils';
 import { Post } from '@/types';
 
@@ -21,16 +23,27 @@ export const NewsCard = ({ post, variant = 'default', className }: NewsCardProps
     author
   } = post;
 
+  const defaultImage = 'https://picsum.photos/seed/news/800/600';
+  const [imgSrc, setImgSrc] = useState<string>(cover_image_url || defaultImage);
+
+  // Sync image source if post changes dynamically
+  useEffect(() => {
+    setImgSrc(cover_image_url || defaultImage);
+  }, [cover_image_url]);
+
   if (variant === 'featured') {
     return (
       <Link 
         href={`/noticias/${slug}`} 
         className={cn("group relative block aspect-[16/9] overflow-hidden rounded-[2rem] bg-zinc-900 shadow-2xl shadow-zinc-200/50", className)}
       >
-        <img 
-          src={cover_image_url || 'https://picsum.photos/seed/news/1200/800'} 
-          alt={title}
+        <Image 
+          src={imgSrc} 
+          alt={title || 'Post em Destaque'}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 1200px"
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80"
+          onError={() => setImgSrc(defaultImage)}
           referrerPolicy="no-referrer"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
@@ -61,10 +74,13 @@ export const NewsCard = ({ post, variant = 'default', className }: NewsCardProps
         className={cn("group flex gap-6 md:gap-8 items-start py-6 border-b border-zinc-100 last:border-0", className)}
       >
         <div className="relative h-28 w-36 md:h-40 md:w-64 flex-shrink-0 overflow-hidden rounded-2xl bg-zinc-100 shadow-sm">
-          <img 
-            src={cover_image_url || 'https://picsum.photos/seed/news/400/300'} 
-            alt={title}
+          <Image 
+            src={imgSrc} 
+            alt={title || 'Post'}
+            fill
+            sizes="(max-width: 768px) 150px, 256px"
             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+            onError={() => setImgSrc(defaultImage)}
             referrerPolicy="no-referrer"
           />
         </div>
@@ -112,10 +128,13 @@ export const NewsCard = ({ post, variant = 'default', className }: NewsCardProps
       className={cn("group block space-y-5", className)}
     >
       <div className="relative aspect-[16/10] overflow-hidden rounded-[1.5rem] bg-zinc-100 shadow-md">
-        <img 
-          src={cover_image_url || 'https://picsum.photos/seed/news/600/400'} 
-          alt={title}
+        <Image 
+          src={imgSrc} 
+          alt={title || 'Post'}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 400px"
           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+          onError={() => setImgSrc(defaultImage)}
           referrerPolicy="no-referrer"
         />
       </div>

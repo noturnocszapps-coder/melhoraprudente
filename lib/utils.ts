@@ -55,3 +55,34 @@ export function slugify(text: string) {
     .replace(/[^\w-]+/g, '')
     .replace(/--+/g, '-');
 }
+
+export function sanitizeHtml(html: string): string {
+  if (!html) return '';
+
+  // 1. Remove script tags and their content
+  let sanitized = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+
+  // 2. Remove comments
+  sanitized = sanitized.replace(/<!--[\s\S]*?-->/g, '');
+
+  // 3. Remove dangerous HTML elements completely
+  const dangerousTags = ['object', 'embed', 'link', 'style', 'meta', 'applet', 'iframe', 'frame', 'frameset', 'base'];
+  dangerousTags.forEach(tag => {
+    const reg = new RegExp(`<${tag}\\b[^<]*(?:(?!<\/${tag}>)<[^<]*)*<\/${tag}>`, 'gi');
+    sanitized = sanitized.replace(reg, '');
+    const singleReg = new RegExp(`<${tag}\\b[^>]*>`, 'gi');
+    sanitized = sanitized.replace(singleReg, '');
+  });
+
+  // 4. Strip dangerous attributes like on* (events) and javascript: URIs
+  // Remove event handlers like onclick="...", onerror=...
+  sanitized = sanitized.replace(/\s+on[a-z]+\s*=\s*(['"][^'"]*['"]|[^\s>]+)/gi, '');
+
+  // Remove href="javascript:..."
+  sanitized = sanitized.replace(/href\s*=\s*(['"]\s*javascript:[^'"]*['"]|javascript:[^\s>]+)/gi, 'href="#"');
+
+  // Remove src="javascript:..."
+  sanitized = sanitized.replace(/src\s*=\s*(['"]\s*javascript:[^'"]*['"]|javascript:[^\s>]+)/gi, 'src=""');
+
+  return sanitized;
+}

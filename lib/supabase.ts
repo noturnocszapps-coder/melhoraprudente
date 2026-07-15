@@ -1,12 +1,22 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://jxaizkkyhugvhdlepifc.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_qpzu_qjFYziLL7m9va8Uaw_TzI0hXOK';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export const isSupabaseConfigured = !!supabaseUrl && !!supabaseAnonKey && supabaseUrl !== 'https://placeholder.supabase.co';
+export const isSupabaseConfigured = !!supabaseUrl && !!supabaseAnonKey && supabaseUrl.startsWith('https://') && !supabaseUrl.includes('placeholder');
+
+if (!isSupabaseConfigured && typeof window !== 'undefined') {
+  console.error(
+    'ERRO DE CONFIGURAÇÃO: As variáveis de ambiente NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY não estão configuradas ou são inválidas. Certifique-se de configurar estas variáveis no painel de configurações para que o banco de dados funcione de forma correta.'
+  );
+}
+
+// Para prevenir falhas drásticas no build caso as variáveis de ambiente não estejam prontas, usamos placeholders limpos
+const activeUrl = supabaseUrl || 'https://placeholder-project.supabase.co';
+const activeKey = supabaseAnonKey || 'placeholder-key';
 
 export const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey
+  activeUrl,
+  activeKey
 );
 

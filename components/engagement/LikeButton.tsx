@@ -6,6 +6,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { engagementService } from '@/services';
 import { motion } from 'motion/react';
 import Link from 'next/link';
+import { checkRateLimit } from '@/lib/rateLimit';
+import { trackEvent } from '@/lib/analytics';
 
 interface LikeButtonProps {
   newsId: string;
@@ -49,13 +51,29 @@ export default function LikeButton({ newsId }: LikeButtonProps) {
       return;
     }
 
+    const limitResult = checkRateLimit(`like:${user.id}:${newsId}`, 15, 60000, true);
+    if (limitResult.limited) {
+      alert(`Muitas interações rápidas nesta notícia. Por favor, aguarde ${Math.ceil(limitResult.resetMs / 1000)} segundos.`);
+      return;
+    }
+
     setToggling(true);
     try {
       const result = await engagementService.toggleLike(newsId, user.id);
       setLiked(result.liked);
       setLikesCount(result.count);
+      trackEvent('curtida', {
+        category: 'Engajamento',
+        news_id: newsId,
+        liked: result.liked,
+        likes_count: result.count
+      });
     } catch (err) {
       console.error('Error toggling like:', err);
+      trackEvent('curtida_erro', {
+        category: 'Erros',
+        news_id: newsId
+      });
     } finally {
       setToggling(false);
     }

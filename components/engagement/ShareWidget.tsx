@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Share2, Link2, Check } from 'lucide-react';
 import { engagementService } from '@/services';
+import { checkRateLimit } from '@/lib/rateLimit';
+import { trackEvent } from '@/lib/analytics';
 
 interface ShareWidgetProps {
   newsId: string;
@@ -31,26 +33,68 @@ export default function ShareWidget({ newsId, newsTitle, newsSlug }: ShareWidget
   }, [newsId]);
 
   const handleShare = async (platform: string, url: string) => {
+    const limitResult = checkRateLimit(`share:${newsId}`, 10, 60000, true);
+    if (limitResult.limited) {
+      if (typeof window !== 'undefined') {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+      return;
+    }
+
     try {
       await engagementService.recordShare(newsId, platform);
       setSharesCount(prev => prev + 1);
+      trackEvent('compartilhamento', {
+        category: 'Engajamento',
+        news_id: newsId,
+        platform: platform,
+        slug: newsSlug
+      });
       if (typeof window !== 'undefined') {
         window.open(url, '_blank', 'noopener,noreferrer');
       }
     } catch (err) {
       console.error('Error recording share:', err);
+      trackEvent('compartilhamento_erro', {
+        category: 'Erros',
+        news_id: newsId,
+        platform: platform
+      });
     }
   };
 
   const handleCopyLink = async () => {
+    const limitResult = checkRateLimit(`share:${newsId}`, 10, 60000, true);
+    if (limitResult.limited) {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Error copying link:', err);
+      }
+      return;
+    }
+
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       await engagementService.recordShare(newsId, 'copy_link');
       setSharesCount(prev => prev + 1);
+      trackEvent('compartilhamento', {
+        category: 'Engajamento',
+        news_id: newsId,
+        platform: 'copy_link',
+        slug: newsSlug
+      });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Error copying link:', err);
+      trackEvent('compartilhamento_erro', {
+        category: 'Erros',
+        news_id: newsId,
+        platform: 'copy_link'
+      });
     }
   };
 

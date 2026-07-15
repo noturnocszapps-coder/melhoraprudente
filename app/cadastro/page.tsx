@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { User, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
+import { checkRateLimit } from '@/lib/rateLimit';
+import { trackEvent } from '@/lib/analytics';
 
 export default function RegisterPage() {
   const [fullName, setFullName] = React.useState('');
@@ -19,6 +21,13 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    const limitResult = checkRateLimit('register', 3, 300000, true);
+    if (limitResult.limited) {
+      setError(`Muitas solicitações de cadastro. Por favor, aguarde ${Math.ceil(limitResult.resetMs / 1000)} segundos antes de tentar novamente.`);
+      setLoading(false);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError('As senhas não coincidem');
@@ -56,8 +65,10 @@ export default function RegisterPage() {
         // We ignore error here because it might already exist due to trigger
       }
 
+      trackEvent('cadastro', { status: 'success' });
       router.push('/login?registered=true');
     } catch (err: any) {
+      trackEvent('cadastro_error', { message: err.message || 'Erro desconhecido' });
       if (err.message === 'User already registered') {
         setError('Este e-mail já está cadastrado');
       } else {

@@ -110,6 +110,7 @@ export default function NewsCarousel({ newsItems }: NewsCarouselProps) {
                 alt={currentItem.title}
                 fill
                 priority
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 1200px"
                 className="object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-90"
                 onError={() => {
                   setImgSrc(defaultImage);

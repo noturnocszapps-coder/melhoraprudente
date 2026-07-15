@@ -11,7 +11,8 @@ const CATEGORY_SUGGESTIONS = ['Cidade', 'Política', 'Segurança', 'Esportes', '
 export default function EditNewsPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const { id } = useParams();
+  const params = useParams();
+  const id = params?.id as string;
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,12 +67,21 @@ export default function EditNewsPage() {
     }
     setAnalyzing(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
       const res = await fetch('/api/ai-editorial', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`
+        },
         body: JSON.stringify({ title: formData.title, content: formData.content })
       });
-      if (!res.ok) throw new Error('Falha de conexão com o servidor de IA.');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Falha de conexão com o servidor de IA.');
+      }
       const data = await res.json();
       
       setFormData(prev => ({
@@ -132,43 +142,10 @@ export default function EditNewsPage() {
             ai_seo_description: data.ai_seo_description || '',
           });
         }
-      } catch (error) {
-        console.warn('Error fetching news item from Supabase, attempting local fetch:', error);
-        if (typeof window !== 'undefined') {
-          try {
-            const item = window.localStorage.getItem('mp_fallback_posts');
-            const posts = item ? JSON.parse(item) : [];
-            const found = posts.find((p: any) => p.id === id);
-            if (found) {
-              setFormData({
-                title: found.title || '',
-                slug: found.slug || '',
-                content: found.content || '',
-                excerpt: found.excerpt || '',
-                cover_image: found.cover_image_url || found.cover_image || '',
-                category: found.category?.name || found.category_name || 'Geral',
-                status: found.status === 'published' ? 'published' : 'draft',
-                
-                // Fallback details
-                city_slug: found.city_slug || 'nacional',
-                city_name: found.city_name || 'Nacional',
-                region: found.region || 'BR',
-                is_breaking: found.is_breaking || false,
-                ai_classification: found.ai_classification || '',
-                ai_relevance_score: found.ai_relevance_score ?? 50,
-                ai_viral_potential_score: found.ai_viral_potential_score ?? 50,
-                ai_regional_impact_score: found.ai_regional_impact_score ?? 50,
-                ai_summary: found.ai_summary || '',
-                ai_seo_title: found.ai_seo_title || '',
-                ai_seo_description: found.ai_seo_description || '',
-              });
-            } else {
-              alert('Notícia não encontrada no cache local.');
-            }
-          } catch (e) {
-            console.error(e);
-          }
-        }
+      } catch (error: any) {
+        console.warn('Error fetching news item from Supabase:', error);
+        alert('Erro ao carregar notícia do banco de dados: ' + (error.message || error));
+        router.push('/admin/noticias');
       } finally {
         setLoading(false);
       }
@@ -234,84 +211,8 @@ export default function EditNewsPage() {
       if (error) throw error;
       router.push('/admin/noticias');
     } catch (error: any) {
-      console.warn('Error updating news in Supabase, updating local cache instead:', error);
-      if (typeof window !== 'undefined') {
-        try {
-          const item = window.localStorage.getItem('mp_fallback_posts');
-          
-          // Use default posts list as baseline if not yet stored
-          const baselinePosts = item ? JSON.parse(item) : [];
-          
-          const index = baselinePosts.findIndex((p: any) => p.id === id);
-          if (index !== -1) {
-            baselinePosts[index] = {
-              ...baselinePosts[index],
-              title: formData.title,
-              slug: formData.slug,
-              content: formData.content,
-              excerpt: formData.excerpt || null,
-              cover_image_url: formData.cover_image || null,
-              status: formData.status === 'published' ? 'published' : 'draft',
-              updated_at: new Date().toISOString(),
-              category: { name: formData.category, slug: formData.category.toLowerCase() },
-              
-              // Tenant fields and AI
-              city_slug: formData.city_slug,
-              city_name: formData.city_name,
-              region: formData.region,
-              is_breaking: formData.is_breaking,
-              ai_classification: formData.ai_classification || formData.category,
-              ai_relevance_score: formData.ai_relevance_score,
-              ai_viral_potential_score: formData.ai_viral_potential_score,
-              ai_regional_impact_score: formData.ai_regional_impact_score,
-              ai_summary: formData.ai_summary || null,
-              ai_seo_title: formData.ai_seo_title || null,
-              ai_seo_description: formData.ai_seo_description || null
-            };
-            window.localStorage.setItem('mp_fallback_posts', JSON.stringify(baselinePosts));
-            router.push('/admin/noticias');
-          } else {
-            // News not found in local posts list, create it!
-            const newPost = {
-              id: id as string,
-              title: formData.title,
-              slug: formData.slug,
-              content: formData.content,
-              excerpt: formData.excerpt || null,
-              cover_image_url: formData.cover_image || null,
-              category_id: `cat-${Date.now()}`,
-              status: formData.status === 'published' ? 'published' : 'draft',
-              author_id: user.id,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              published_at: formData.status === 'published' ? new Date().toISOString() : null,
-              category: { name: formData.category, slug: formData.category.toLowerCase() },
-              author: { full_name: 'Antônio Silva' },
-              
-              // Tenant and AI fields
-              city_slug: formData.city_slug,
-              city_name: formData.city_name,
-              region: formData.region,
-              is_breaking: formData.is_breaking,
-              ai_classification: formData.ai_classification || formData.category,
-              ai_relevance_score: formData.ai_relevance_score,
-              ai_viral_potential_score: formData.ai_viral_potential_score,
-              ai_regional_impact_score: formData.ai_regional_impact_score,
-              ai_summary: formData.ai_summary || null,
-              ai_seo_title: formData.ai_seo_title || null,
-              ai_seo_description: formData.ai_seo_description || null
-            };
-            baselinePosts.unshift(newPost);
-            window.localStorage.setItem('mp_fallback_posts', JSON.stringify(baselinePosts));
-            router.push('/admin/noticias');
-          }
-        } catch (e: any) {
-          console.error(e);
-          alert('Erro ao salvar localmente: ' + e.message);
-        }
-      } else {
-        alert('Erro ao atualizar notícia: ' + error.message);
-      }
+      console.warn('Error updating news in Supabase:', error);
+      alert('Erro ao salvar as alterações da notícia no banco de dados: ' + (error.message || error));
     } finally {
       setSaving(false);
     }

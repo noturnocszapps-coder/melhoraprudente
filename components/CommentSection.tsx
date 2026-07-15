@@ -8,6 +8,8 @@ import { formatDate } from '@/lib/utils';
 import { Loader2, Send, CornerDownRight, User, Reply, X, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
+import { checkRateLimit } from '@/lib/rateLimit';
+import { trackEvent } from '@/lib/analytics';
 
 interface CommentSectionProps {
   newsId?: string;
@@ -52,12 +54,21 @@ export default function CommentSection({ newsId, postId }: CommentSectionProps) 
     if (!user || isBlocked || isSuspended || !newComment.trim() || !activeId) return;
 
     setSubmitting(true);
+    const limitResult = checkRateLimit(`comment:${user.id}`, 5, 60000, true);
+    if (limitResult.limited) {
+      alert(`Você está enviando comentários muito rápido. Por favor, aguarde ${Math.ceil(limitResult.resetMs / 1000)} segundos.`);
+      setSubmitting(false);
+      return;
+    }
+
     try {
       await engagementService.createComment(activeId, user.id, newComment.trim(), null);
+      trackEvent('comentario', { category: 'Engajamento', news_id: activeId, type: 'novo' });
       setNewComment('');
       await fetchComments();
     } catch (error) {
       console.error('Error posting comment:', error);
+      trackEvent('comentario_erro', { category: 'Erros', news_id: activeId });
     } finally {
       setSubmitting(false);
     }
@@ -68,13 +79,22 @@ export default function CommentSection({ newsId, postId }: CommentSectionProps) 
     if (!user || isBlocked || isSuspended || !replyContent.trim() || !activeId) return;
 
     setReplySubmitting(true);
+    const limitResult = checkRateLimit(`comment:${user.id}`, 5, 60000, true);
+    if (limitResult.limited) {
+      alert(`Você está enviando respostas muito rápido. Por favor, aguarde ${Math.ceil(limitResult.resetMs / 1000)} segundos.`);
+      setReplySubmitting(false);
+      return;
+    }
+
     try {
       await engagementService.createComment(activeId, user.id, replyContent.trim(), parentId);
+      trackEvent('comentario', { category: 'Engajamento', news_id: activeId, type: 'resposta', parent_id: parentId });
       setReplyContent('');
       setActiveReplyId(null);
       await fetchComments();
     } catch (error) {
       console.error('Error posting reply:', error);
+      trackEvent('comentario_erro', { category: 'Erros', news_id: activeId, type: 'resposta' });
     } finally {
       setReplySubmitting(false);
     }

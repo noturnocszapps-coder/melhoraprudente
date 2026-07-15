@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
+import { checkRateLimit } from '@/lib/rateLimit';
+import { trackEvent } from '@/lib/analytics';
 
 export default function LoginPage() {
   const [email, setEmail] = React.useState('');
@@ -17,6 +19,13 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    const limitResult = checkRateLimit('login', 5, 60000, true);
+    if (limitResult.limited) {
+      setError(`Muitas tentativas de login. Por favor, aguarde ${Math.ceil(limitResult.resetMs / 1000)} segundos.`);
+      setLoading(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -39,11 +48,14 @@ export default function LoginPage() {
         .single();
 
       if (profile?.role === 'admin' || profile?.role === 'editor') {
+        trackEvent('login', { status: 'success', role: profile.role });
         router.push('/admin');
       } else {
+        trackEvent('login', { status: 'success', role: profile?.role || 'user' });
         router.push('/');
       }
     } catch (err: any) {
+      trackEvent('login_error', { message: err.message || 'Erro desconhecido' });
       setError(err.message || 'Erro ao entrar. Tente novamente.');
     } finally {
       setLoading(false);

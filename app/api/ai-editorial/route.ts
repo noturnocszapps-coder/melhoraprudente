@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
 // Initialize Gemini client server-side
 // User-Agent: aistudio-build is added to telemetry headers
@@ -9,6 +10,53 @@ const ai = new GoogleGenAI({
 
 export async function POST(req: NextRequest) {
   try {
+    // Validate Authorization / Role on the server-side
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Não autorizado. Token de autenticação ausente." },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.substring(7);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Sessão inválida ou expirada." },
+        { status: 401 }
+      );
+    }
+
+    // Check user role from profiles
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role, status")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json(
+        { error: "Perfil de usuário não encontrado ou erro de permissão." },
+        { status: 403 }
+      );
+    }
+
+    if (profile.status === "blocked" || profile.status === "suspended") {
+      return NextResponse.json(
+        { error: "Sua conta está suspensa ou bloqueada." },
+        { status: 403 }
+      );
+    }
+
+    if (profile.role !== "admin" && profile.role !== "editor") {
+      return NextResponse.json(
+        { error: "Acesso negado. Apenas administradores ou editores podem acessar este recurso." },
+        { status: 403 }
+      );
+    }
+
     const { title, content } = await req.json();
 
     if (!title || !content) {

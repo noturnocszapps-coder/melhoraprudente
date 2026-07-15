@@ -16,7 +16,7 @@ export default function AdminAds() {
     name: '',
     image_url: '',
     target_url: '',
-    slot: 'sidebar_top',
+    slot: 'home_top',
     is_active: true,
     starts_at: new Date().toISOString(),
     ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -63,7 +63,7 @@ export default function AdminAds() {
         name: '',
         image_url: '',
         target_url: '',
-        slot: 'sidebar_top',
+        slot: 'home_top',
         is_active: true,
         starts_at: new Date().toISOString(),
         ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -134,10 +134,17 @@ export default function AdminAds() {
               onChange={e => setFormData(prev => ({ ...prev, slot: e.target.value }))}
               className="w-full bg-zinc-50 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-red-600 transition-all"
             >
-              <option value="sidebar_top">Lateral Superior</option>
-              <option value="sidebar_middle">Lateral Meio</option>
-              <option value="sidebar_news_detail">Lateral Detalhe Notícia</option>
+              <option value="home_top">Home Topo</option>
+              <option value="home_middle">Home Meio</option>
+              <option value="home_sidebar">Home Lateral</option>
               <option value="home_footer">Home Rodapé</option>
+              <option value="sidebar_news_detail">Notícia Lateral Superior</option>
+              <option value="sidebar_news_detail_bottom">Notícia Lateral Inferior</option>
+              <option value="article_inline">Notícia Interno (Inline)</option>
+              <option value="category_top">Categoria Topo</option>
+              <option value="category_footer">Categoria Rodapé</option>
+              <option value="archive_top">Notícias Geral Topo</option>
+              <option value="archive_footer">Notícias Geral Rodapé</option>
             </select>
           </div>
           <div className="space-y-2">
@@ -170,7 +177,7 @@ export default function AdminAds() {
                     name: '',
                     image_url: '',
                     target_url: '',
-                    slot: 'sidebar_top',
+                    slot: 'home_top',
                     is_active: true,
                     starts_at: new Date().toISOString(),
                     ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()

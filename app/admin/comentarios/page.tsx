@@ -4,10 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Check, X, Trash2, Loader2, MessageSquare, User } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
-import { Comment } from '@/types';
+import { NewsComment } from '@/types';
 
 export default function AdminComments() {
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<NewsComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
 
@@ -17,46 +17,72 @@ export default function AdminComments() {
 
   const fetchComments = async () => {
     setLoading(true);
-    let query = supabase
-      .from('comments')
-      .select('*, posts(title), user:profiles(full_name, avatar_url)')
-      .order('created_at', { ascending: false });
-    
-    if (filter !== 'all') {
-      query = query.eq('status', filter);
-    }
+    try {
+      let query = supabase
+        .from('news_comments')
+        .select('*, news:news(title), user:profiles(full_name, avatar_url)')
+        .order('created_at', { ascending: false });
+      
+      if (filter !== 'all') {
+        query = query.eq('status', filter);
+      }
 
-    const { data, error } = await query;
-    
-    if (error) console.error('Error fetching comments:', error);
-    else setComments(data || []);
-    setLoading(false);
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      setComments(data || []);
+    } catch (error: any) {
+      console.error('Error fetching comments:', error);
+      alert('Erro ao buscar comentários do banco de dados: ' + (error.message || error));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStatusChange = async (id: string, status: 'approved' | 'rejected') => {
-    const { error } = await supabase
-      .from('comments')
-      .update({ status })
-      .eq('id', id);
-    
-    if (error) {
-      console.error('Erro ao atualizar status do comentário:', error);
-    } else {
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        alert('Você precisa estar autenticado para realizar esta ação.');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('news_comments')
+        .update({ 
+          status,
+          moderated_at: new Date().toISOString(),
+          moderated_by: currentUser.id
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      alert(`Comentário ${status === 'approved' ? 'aprovado' : 'rejeitado'} com sucesso.`);
       fetchComments();
+    } catch (error: any) {
+      console.error('Erro ao atualizar status do comentário:', error);
+      alert('Erro ao atualizar status do comentário: ' + (error.message || error));
     }
   };
 
   const handleDelete = async (id: string) => {
-    // In a real app, use a custom modal
     if (!window.confirm('Tem certeza que deseja excluir permanentemente este comentário?')) return;
     
-    const { error } = await supabase
-      .from('comments')
-      .delete()
-      .eq('id', id);
-    
-    if (error) alert('Erro ao excluir comentário');
-    else fetchComments();
+    try {
+      const { error } = await supabase
+        .from('news_comments')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      alert('Comentário excluído com sucesso.');
+      fetchComments();
+    } catch (error: any) {
+      console.error('Erro ao excluir comentário:', error);
+      alert('Erro ao excluir comentário: ' + (error.message || error));
+    }
   };
 
   return (
@@ -144,7 +170,7 @@ export default function AdminComments() {
 
               <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
                 <span>Em:</span>
-                <span className="text-zinc-900">{comment.posts?.title || 'Notícia excluída'}</span>
+                <span className="text-zinc-900">{(comment as any).news?.title || 'Notícia excluída'}</span>
               </div>
             </div>
           ))}

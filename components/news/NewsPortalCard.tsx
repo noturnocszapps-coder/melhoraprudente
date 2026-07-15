@@ -1,6 +1,8 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { cn, formatDate } from '@/lib/utils';
 import { News } from '@/types';
 
@@ -22,6 +24,12 @@ export const NewsPortalCard = ({ news, variant = 'default', className }: NewsPor
   } = news;
 
   const defaultImage = 'https://picsum.photos/seed/news/800/600';
+  const [imgSrc, setImgSrc] = useState<string>(cover_image || defaultImage);
+
+  // Sync image source if news object changes dynamically
+  useEffect(() => {
+    setImgSrc(cover_image || defaultImage);
+  }, [cover_image]);
 
   if (variant === 'featured') {
     return (
@@ -29,10 +37,13 @@ export const NewsPortalCard = ({ news, variant = 'default', className }: NewsPor
         href={`/noticia/${slug}`} 
         className={cn("group relative block aspect-[16/9] overflow-hidden rounded-[2rem] bg-zinc-900 shadow-2xl shadow-zinc-200/50", className)}
       >
-        <img 
-          src={cover_image || defaultImage} 
-          alt={title}
+        <Image 
+          src={imgSrc} 
+          alt={title || 'Notícia em Destaque'}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 1200px"
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-102 opacity-80"
+          onError={() => setImgSrc(defaultImage)}
           referrerPolicy="no-referrer"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
@@ -64,10 +75,13 @@ export const NewsPortalCard = ({ news, variant = 'default', className }: NewsPor
       >
         {cover_image && (
           <div className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-zinc-100">
-            <img 
-              src={cover_image} 
-              alt={title}
+            <Image 
+              src={imgSrc} 
+              alt={title || 'Notícia Compacta'}
+              fill
+              sizes="96px"
               className="h-full w-full object-cover transition-transform duration-75 group-hover:scale-105"
+              onError={() => setImgSrc(defaultImage)}
               referrerPolicy="no-referrer"
             />
           </div>
@@ -93,10 +107,13 @@ export const NewsPortalCard = ({ news, variant = 'default', className }: NewsPor
       className={cn("group block space-y-5", className)}
     >
       <div className="relative aspect-[16/10] overflow-hidden rounded-[1.5rem] bg-zinc-100 shadow-md">
-        <img 
-          src={cover_image || defaultImage} 
-          alt={title}
+        <Image 
+          src={imgSrc} 
+          alt={title || 'Notícia'}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 400px"
           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+          onError={() => setImgSrc(defaultImage)}
           referrerPolicy="no-referrer"
         />
       </div>

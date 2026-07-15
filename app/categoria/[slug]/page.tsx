@@ -42,12 +42,44 @@ export default async function CategoryPage({ params }: Props) {
     return notFound();
   }
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://melhoraprudente.com.br"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": category.name,
+        "item": `https://melhoraprudente.com.br/categoria/${category.slug}`
+      }
+    ]
+  };
+
   return (
     <div className="min-h-screen bg-white pb-20">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       {/* Category Header */}
       <div className="bg-zinc-900 text-white py-16 md:py-24 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-1/2 h-full bg-red-600/10 skew-x-12 translate-x-1/4" />
         <div className="container mx-auto px-4 relative z-10">
+          {/* Breadcrumbs */}
+          <div className="flex flex-wrap items-center gap-2 text-zinc-400 text-xs font-bold uppercase tracking-wider mb-8">
+            <Link href="/" className="hover:text-white transition-colors">Home</Link>
+            <ChevronRight size={12} className="text-zinc-600" />
+            <span className="text-zinc-500">Categoria</span>
+            <ChevronRight size={12} className="text-zinc-600" />
+            <span className="text-white">{category.name}</span>
+          </div>
+
           <Link href="/" className="inline-flex items-center gap-2 text-zinc-400 hover:text-white font-bold text-sm mb-8 transition-colors group">
             <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
             Home

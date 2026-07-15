@@ -63,12 +63,21 @@ export default function NewNewsPage() {
     }
     setAnalyzing(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
       const res = await fetch('/api/ai-editorial', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`
+        },
         body: JSON.stringify({ title: formData.title, content: formData.content })
       });
-      if (!res.ok) throw new Error('Falha de conexão com o servidor de IA.');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Falha de conexão com o servidor de IA.');
+      }
       const data = await res.json();
       
       setFormData(prev => ({
@@ -146,54 +155,8 @@ export default function NewNewsPage() {
       if (error) throw error;
       router.push('/admin/noticias');
     } catch (error: any) {
-      console.warn('Error creating news in Supabase, saving to local cache instead:', error);
-      if (typeof window !== 'undefined') {
-        try {
-          const item = window.localStorage.getItem('mp_fallback_posts');
-          
-          // Use default posts list as baseline if not yet stored
-          const baselinePosts = item ? JSON.parse(item) : [];
-          
-          const newPost = {
-            id: `post-${Date.now()}`,
-            title: formData.title,
-            slug: formData.slug,
-            content: formData.content,
-            excerpt: formData.excerpt || null,
-            cover_image_url: formData.cover_image || null,
-            category_id: `cat-${Date.now()}`,
-            status: formData.status === 'published' ? 'published' : 'draft',
-            author_id: user.id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            published_at: formData.status === 'published' ? new Date().toISOString() : null,
-            category: { name: formData.category, slug: formData.category.toLowerCase() },
-            author: { full_name: 'Antônio Silva' },
-            
-            // AI and City fields
-            city_slug: formData.city_slug,
-            city_name: formData.city_name,
-            region: formData.region,
-            is_breaking: formData.is_breaking,
-            ai_classification: formData.ai_classification || formData.category,
-            ai_relevance_score: formData.ai_relevance_score,
-            ai_viral_potential_score: formData.ai_viral_potential_score,
-            ai_regional_impact_score: formData.ai_regional_impact_score,
-            ai_summary: formData.ai_summary || null,
-            ai_seo_title: formData.ai_seo_title || null,
-            ai_seo_description: formData.ai_seo_description || null
-          };
-
-          const updatedPosts = [newPost, ...baselinePosts];
-          window.localStorage.setItem('mp_fallback_posts', JSON.stringify(updatedPosts));
-          router.push('/admin/noticias');
-        } catch (e: any) {
-          console.error(e);
-          alert('Erro ao salvar localmente: ' + e.message);
-        }
-      } else {
-        alert('Erro ao criar notícia: ' + error.message);
-      }
+      console.warn('Error creating news in Supabase:', error);
+      alert('Erro ao criar notícia no banco de dados: ' + (error.message || error));
     } finally {
       setLoading(false);
     }

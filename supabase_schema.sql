@@ -60,7 +60,7 @@ CREATE TABLE ads (
   name TEXT NOT NULL,
   image_url TEXT NOT NULL,
   target_url TEXT NOT NULL,
-  slot TEXT NOT NULL CHECK (slot IN ('home_top', 'home_middle', 'sidebar_top', 'sidebar_bottom', 'post_inline', 'post_footer')),
+  slot TEXT NOT NULL CHECK (slot IN ('home_top', 'home_middle', 'home_sidebar', 'home_footer', 'sidebar_news_detail', 'sidebar_news_detail_bottom', 'article_inline', 'category_top', 'category_footer', 'archive_top', 'archive_footer')),
   starts_at TIMESTAMP WITH TIME ZONE NOT NULL,
   ends_at TIMESTAMP WITH TIME ZONE NOT NULL,
   is_active BOOLEAN DEFAULT true,
@@ -145,9 +145,25 @@ CREATE TABLE news (
   category TEXT NOT NULL,
   status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
   author_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  city_slug TEXT DEFAULT 'presidente-prudente' NOT NULL,
+  city_name TEXT DEFAULT 'Presidente Prudente' NOT NULL,
+  region TEXT DEFAULT 'SP' NOT NULL,
+  is_breaking BOOLEAN DEFAULT false NOT NULL,
+  ai_classification TEXT,
+  ai_relevance_score INTEGER DEFAULT 50 CHECK (ai_relevance_score BETWEEN 0 AND 100) NOT NULL,
+  ai_viral_potential_score INTEGER DEFAULT 50 CHECK (ai_viral_potential_score BETWEEN 0 AND 100) NOT NULL,
+  ai_regional_impact_score INTEGER DEFAULT 50 CHECK (ai_regional_impact_score BETWEEN 0 AND 100) NOT NULL,
+  ai_summary TEXT,
+  ai_seo_title TEXT,
+  ai_seo_description TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS news_status_created_at_idx ON news (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS news_category_idx ON news (category);
+CREATE INDEX IF NOT EXISTS news_city_slug_idx ON news (city_slug);
+CREATE INDEX IF NOT EXISTS news_is_breaking_created_at_idx ON news (is_breaking, created_at DESC);
 
 -- RLS and Policies for News
 ALTER TABLE news ENABLE ROW LEVEL SECURITY;
@@ -181,8 +197,17 @@ CREATE TABLE IF NOT EXISTS news_comments (
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   parent_id UUID REFERENCES news_comments(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+  status TEXT DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  moderated_at TIMESTAMP WITH TIME ZONE,
+  moderated_by UUID REFERENCES profiles(id) ON DELETE SET NULL
 );
+
+CREATE INDEX IF NOT EXISTS news_comments_news_status_created_at_idx ON news_comments (news_id, status, created_at);
+CREATE INDEX IF NOT EXISTS news_comments_user_id_idx ON news_comments (user_id);
+CREATE INDEX IF NOT EXISTS news_comments_parent_id_idx ON news_comments (parent_id);
+CREATE INDEX IF NOT EXISTS news_comments_status_created_at_idx ON news_comments (status, created_at);
 
 -- news_shares
 CREATE TABLE IF NOT EXISTS news_shares (
@@ -204,8 +229,43 @@ CREATE POLICY "Anyone can insert news_views" ON news_views FOR INSERT WITH CHECK
 CREATE POLICY "Anyone can view news_likes" ON news_likes FOR SELECT USING (true);
 CREATE POLICY "Authenticated users can toggle news_likes" ON news_likes FOR ALL USING (auth.uid() = user_id);
 
-CREATE POLICY "Anyone can view news_comments" ON news_comments FOR SELECT USING (true);
-CREATE POLICY "Authenticated users can manage news_comments" ON news_comments FOR ALL USING (auth.uid() = user_id);
+-- news_comments policies
+CREATE POLICY "Anyone can select approved comments" ON news_comments 
+  FOR SELECT USING (status = 'approved');
+
+CREATE POLICY "Users can select their own comments" ON news_comments 
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins and editors can select all comments" ON news_comments 
+  FOR SELECT USING (get_role(auth.uid()) IN ('admin', 'editor'));
+
+CREATE POLICY "Authenticated active users can insert comments" ON news_comments 
+  FOR INSERT WITH CHECK (
+    auth.uid() = user_id AND 
+    (SELECT status FROM profiles WHERE id = auth.uid()) = 'active' AND
+    status = 'pending' AND
+    (parent_id IS NULL OR EXISTS (
+      SELECT 1 FROM news_comments p WHERE p.id = parent_id AND p.status = 'approved' AND p.news_id = news_id
+    ))
+  );
+
+CREATE POLICY "Users can update their own pending comments" ON news_comments 
+  FOR UPDATE USING (
+    auth.uid() = user_id AND status = 'pending'
+  ) WITH CHECK (
+    auth.uid() = user_id AND 
+    status = 'pending' AND
+    moderated_at IS NULL AND
+    moderated_by IS NULL
+  );
+
+CREATE POLICY "Users can delete their own pending comments" ON news_comments 
+  FOR DELETE USING (
+    auth.uid() = user_id AND status = 'pending'
+  );
+
+CREATE POLICY "Admins and editors can manage any comment" ON news_comments 
+  FOR ALL USING (get_role(auth.uid()) IN ('admin', 'editor'));
 
 CREATE POLICY "Anyone can view news_shares" ON news_shares FOR SELECT USING (true);
 CREATE POLICY "Anyone can insert news_shares" ON news_shares FOR INSERT WITH CHECK (true);

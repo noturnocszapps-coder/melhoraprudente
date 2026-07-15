@@ -152,6 +152,7 @@ export interface NewsComment {
   user_id: string;
   parent_id: string | null;
   content: string;
+  status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   user?: Profile;
   replies?: NewsComment[];
