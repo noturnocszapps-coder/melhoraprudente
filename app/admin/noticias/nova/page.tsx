@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, Save, ArrowLeft, Image as ImageIcon, Type, AlignLeft } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const CATEGORY_SUGGESTIONS = ['Cidade', 'Política', 'Segurança', 'Esportes', 'Cultura', 'Geral'];
 
@@ -13,6 +14,44 @@ export default function NewNewsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMode, setUploadMode] = useState<'upload' | 'url'>('upload');
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
+      const filePath = `covers/${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from('news_covers')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+
+      if (error) {
+        if (error.message.includes('Bucket not found') || error.message.includes('does not exist')) {
+          throw new Error('O bucket de armazenamento "news_covers" não foi encontrado no seu Supabase. Por favor, crie o bucket "news_covers" com acesso público na aba de Storage do seu Supabase para ativar os uploads.');
+        }
+        throw error;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('news_covers')
+        .getPublicUrl(filePath);
+
+      setFormData(prev => ({ ...prev, cover_image: publicUrl }));
+      alert('Upload de imagem realizado com sucesso!');
+    } catch (error: any) {
+      console.error('Error uploading file to Supabase storage:', error);
+      alert('Erro no upload: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
   
   const [formData, setFormData] = useState({
     title: '',
@@ -426,18 +465,79 @@ export default function NewNewsPage() {
             </div>
 
             {/* Cover Image */}
-            <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-zinc-400 block">URL da Imagem de Capa</label>
-              <input
-                type="url"
-                value={formData.cover_image}
-                onChange={e => setFormData(prev => ({ ...prev, cover_image: e.target.value }))}
-                className="w-full bg-zinc-50 border border-zinc-200 focus:border-red-500 rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-red-100 outline-none transition-all text-zinc-800"
-                placeholder="https://images.unsplash.com/..."
-              />
+            <div className="space-y-3">
+              <label className="text-xs font-black uppercase tracking-widest text-zinc-400 block">Imagem de Capa</label>
+              
+              {/* Selector Tabs */}
+              <div className="grid grid-cols-2 gap-2 p-1 bg-zinc-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setUploadMode('upload')}
+                  className={cn(
+                    "py-1.5 text-[10px] font-black uppercase rounded-lg transition-all",
+                    uploadMode === 'upload' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-900"
+                  )}
+                >
+                  Fazer Upload
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUploadMode('url')}
+                  className={cn(
+                    "py-1.5 text-[10px] font-black uppercase rounded-lg transition-all",
+                    uploadMode === 'url' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-900"
+                  )}
+                >
+                  Inserir URL
+                </button>
+              </div>
+
+              {uploadMode === 'upload' ? (
+                <div className="space-y-2">
+                  <div className="relative border-2 border-dashed border-zinc-200 hover:border-red-500/40 rounded-2xl p-4 transition-all bg-zinc-50/50 flex flex-col items-center justify-center gap-2 cursor-pointer group min-h-[110px]">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      disabled={uploading}
+                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    {uploading ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <Loader2 className="animate-spin text-red-600" size={20} />
+                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Fazendo upload...</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1.5 text-center">
+                        <ImageIcon className="text-zinc-400 group-hover:text-red-500 transition-colors" size={20} />
+                        <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider">Clique para selecionar imagem</span>
+                        <span className="text-[9px] text-zinc-400 font-semibold">Tamanho máximo recomendado: 5MB</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <input
+                    type="url"
+                    value={formData.cover_image}
+                    onChange={e => setFormData(prev => ({ ...prev, cover_image: e.target.value }))}
+                    className="w-full bg-zinc-50 border border-zinc-200 focus:border-red-500 rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-red-100 outline-none transition-all text-zinc-800"
+                    placeholder="https://images.unsplash.com/..."
+                  />
+                </div>
+              )}
+
               {formData.cover_image && (
-                <div className="mt-3 aspect-[16/9] rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50">
+                <div className="mt-3 aspect-[16/9] rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50 relative group">
                   <img src={formData.cover_image} alt="Pré-visualização" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, cover_image: '' }))}
+                    className="absolute top-2 right-2 bg-black/75 hover:bg-black/90 text-white rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-wider transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    Remover
+                  </button>
                 </div>
               )}
             </div>

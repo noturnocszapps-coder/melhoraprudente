@@ -16,7 +16,8 @@ import {
   Search,
   Loader2,
   Menu,
-  X
+  X,
+  ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -27,6 +28,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
+  // Prefetch admin pages for instant navigation
+  React.useEffect(() => {
+    router.prefetch('/admin');
+    router.prefetch('/admin/noticias');
+    router.prefetch('/admin/categorias');
+    router.prefetch('/admin/comentarios');
+    router.prefetch('/admin/usuarios');
+    router.prefetch('/admin/anuncios');
+    router.prefetch('/admin/configuracoes');
+    router.prefetch('/');
+  }, [router]);
 
   // Auto-close mobile drawer when route changes
   React.useEffect(() => {
@@ -45,24 +58,35 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
   }, [isMobileMenuOpen]);
 
+  const [mounted, setMounted] = React.useState(false);
+
   React.useEffect(() => {
-    if (!loading) {
+    setMounted(true);
+  }, []);
+
+  React.useEffect(() => {
+    if (mounted && !loading) {
       if (!profile) {
         router.push('/login');
       } else if (!isEditor) {
         router.push('/');
       }
     }
-  }, [profile, loading, router, isEditor]);
+  }, [profile, loading, router, isEditor, mounted]);
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="animate-spin text-red-600" size={40} />
-        <p className="text-zinc-400 font-bold uppercase tracking-widest text-xs">Verificando permissões...</p>
-      </div>
-    </div>
-  );
+  // Avoid hydration mismatch by waiting for mount. If already cached on client, bypass loading screen completely!
+  if (!mounted || loading) {
+    if (!mounted || !profile || !isEditor) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="animate-spin text-red-600" size={40} />
+            <p className="text-zinc-400 font-bold uppercase tracking-widest text-xs">Verificando permissões...</p>
+          </div>
+        </div>
+      );
+    }
+  }
 
   if (!profile || !isEditor) return null;
 
@@ -138,6 +162,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           {/* Nav links */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            <Link
+              href="/"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 mb-2 border-b border-zinc-100 pb-4"
+            >
+              <ArrowLeft size={20} />
+              Voltar ao site
+            </Link>
             {filteredMenu.map((item) => (
               <Link
                 key={item.path}
@@ -183,6 +214,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          <Link
+            href="/"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 mb-2 border-b border-zinc-100 pb-4"
+          >
+            <ArrowLeft size={20} />
+            Voltar ao site
+          </Link>
           {filteredMenu.map((item) => (
             <Link
               key={item.path}

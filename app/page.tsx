@@ -101,8 +101,8 @@ export default async function Home() {
             <aside className="lg:col-span-4 space-y-8">
               <div className="sticky top-28 space-y-8">
                 
-                {/* 📡 AUDIÊNCIA EM TEMPO REAL LOCAL */}
-                <AudienceWidget newsTitle={carouselNews[0]?.title} />
+                {/* 📈 MAIS LIDAS / MAIS RECENTES EDITORIAL */}
+                <AudienceWidget />
 
                 {/* SIDEBAR BANNER AD */}
                 <AdSlot position="home_sidebar" className="min-h-[250px] bg-white border border-zinc-200/60 rounded-3xl shadow-sm overflow-hidden" />

@@ -20,7 +20,7 @@ export default function AdminComments() {
     try {
       let query = supabase
         .from('news_comments')
-        .select('*, news:news(title), user:profiles(full_name, avatar_url)')
+        .select('*, news:news!news_comments_news_id_fkey(title), user:profiles!news_comments_user_id_fkey(full_name, avatar_url)')
         .order('created_at', { ascending: false });
       
       if (filter !== 'all') {

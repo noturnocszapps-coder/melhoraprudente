@@ -34,14 +34,14 @@ export default function AdminDashboard() {
   const [trending, setTrending] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Observability & Growth simulated metrics
+  // Observability & Growth metrics - marked as non-configured/waiting integration per instructions
   const [observability, setObservability] = useState({
-    apiSuccessRate: '99.92%',
-    dbLatency: '14ms',
-    sentryStatus: 'Ativo (Pronto para Produção)',
-    errorsLogged: 0,
-    privacyCheck: 'Em Conformidade (LGPD)',
-    logsSize: '24 KB'
+    apiSuccessRate: 'Aguardando integração',
+    dbLatency: 'Aguardando integração',
+    sentryStatus: 'Não configurado',
+    errorsLogged: 'Indisponível',
+    privacyCheck: 'Aguardando integração',
+    logsSize: 'Não configurado'
   });
 
   const [growth, setGrowth] = useState({
@@ -52,6 +52,24 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
+    // 1. Instantly load cache
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = window.localStorage.getItem('mp_admin_dashboard_stats');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.stats && parsed.trending) {
+            setStats(parsed.stats);
+            setTrending(parsed.trending);
+            if (parsed.growth) setGrowth(parsed.growth);
+            setLoading(false); // Snappy instant mount!
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
     const fetchStats = async () => {
       try {
         const safeCount = async (table: string) => {
@@ -97,8 +115,7 @@ export default function AdminDashboard() {
         const engagementFactor = Math.min(20, (engagementMetrics.likesCount + engagementMetrics.commentsCount * 2 + engagementMetrics.sharesCount * 1.5) / Math.max(1, engagementMetrics.viewsCount) * 100);
         const estimatedBounce = Math.max(28.5, bounceBase - engagementFactor).toFixed(1) + '%';
 
-        // Set state
-        setStats({
+        const freshStats = {
           totalPosts: postsCount,
           totalUsers: usersCount,
           totalCategories: categoriesCount,
@@ -106,22 +123,28 @@ export default function AdminDashboard() {
           commentsCount: engagementMetrics.commentsCount,
           viewsCount: engagementMetrics.viewsCount,
           sharesCount: engagementMetrics.sharesCount
-        });
+        };
 
-        setTrending(trendingNews);
-        
-        setGrowth({
+        const freshGrowth = {
           dailyGrowth: `+${postsCount > 0 ? Math.min(20, Math.ceil(postsCount * 0.12)) : 0}%`,
           weeklyGrowth: `+${postsCount > 0 ? Math.min(45, Math.ceil(postsCount * 0.28)) : 0}%`,
           avgReadingTime: avgReadingStr,
           estimatedBounceRate: estimatedBounce
-        });
+        };
 
-        // Observability check from local / database logs count if any
-        setObservability(prev => ({
-          ...prev,
-          errorsLogged: Math.max(0, Math.floor(postsCount * 0.05))
-        }));
+        // Set state
+        setStats(freshStats);
+        setTrending(trendingNews);
+        setGrowth(freshGrowth);
+
+        // Save to cache
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('mp_admin_dashboard_stats', JSON.stringify({
+            stats: freshStats,
+            trending: trendingNews,
+            growth: freshGrowth
+          }));
+        }
 
       } catch (error) {
         console.error('Error fetching stats:', error);
@@ -361,41 +384,41 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-2 gap-6 text-xs font-bold">
             <div className="space-y-1">
               <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Taxa de Sucesso API</span>
-              <p className="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
-                <CheckCircle size={14} className="text-emerald-500" />
+              <p className="text-lg font-black tracking-tight text-zinc-400 flex items-center gap-1.5">
+                <Clock size={14} className="text-zinc-500" />
                 {observability.apiSuccessRate}
               </p>
             </div>
             <div className="space-y-1">
               <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Latência do Banco</span>
-              <p className="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
-                <Database size={14} className="text-blue-400" />
+              <p className="text-lg font-black tracking-tight text-zinc-400 flex items-center gap-1.5">
+                <Database size={14} className="text-zinc-500" />
                 {observability.dbLatency}
               </p>
             </div>
             <div className="space-y-1">
               <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Status Sentry / Monitor</span>
-              <p className="text-sm font-black tracking-tight text-white flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <p className="text-sm font-black tracking-tight text-zinc-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-zinc-500" />
                 {observability.sentryStatus}
               </p>
             </div>
             <div className="space-y-1">
               <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Erros Registrados (Crit)</span>
-              <p className="text-lg font-black tracking-tight text-yellow-500 flex items-center gap-1.5">
-                <AlertTriangle size={14} className="text-yellow-500" />
+              <p className="text-lg font-black tracking-tight text-zinc-400 flex items-center gap-1.5">
+                <AlertTriangle size={14} className="text-zinc-500" />
                 {observability.errorsLogged}
               </p>
             </div>
             <div className="space-y-1">
               <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Conformidade LGPD</span>
-              <p className="text-sm font-black tracking-tight text-emerald-400">
+              <p className="text-sm font-black tracking-tight text-zinc-400">
                 {observability.privacyCheck}
               </p>
             </div>
             <div className="space-y-1">
               <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Tamanho Logs Limpos</span>
-              <p className="text-sm font-black tracking-tight text-zinc-300">
+              <p className="text-sm font-black tracking-tight text-zinc-500">
                 {observability.logsSize}
               </p>
             </div>

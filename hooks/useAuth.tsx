@@ -28,21 +28,44 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem('mp_auth_user');
+      return stored ? JSON.parse(stored) : null;
+    }
+    return null;
+  });
+  const [profile, setProfile] = useState<Profile | null>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem('mp_user_profile');
+      return stored ? JSON.parse(stored) : null;
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const storedUser = window.localStorage.getItem('mp_auth_user');
+      const storedProfile = window.localStorage.getItem('mp_user_profile');
+      if (storedUser && storedProfile) {
+        return false; // Load instantly if cached
+      }
+    }
+    return true;
+  });
+
+  // Keep refs to avoid stale closure issues in the single-run useEffect
+  const profileRef = React.useRef<Profile | null>(null);
+  profileRef.current = profile;
 
   useEffect(() => {
     let isMounted = true;
-    let lastFetchedUserId: string | null = null;
+    let lastFetchedUserId: string | null = user?.id || null;
+    let isFetching = false;
 
     const fetchProfileData = async (userId: string) => {
-      if (lastFetchedUserId === userId) return;
+      if (isFetching) return;
+      isFetching = true;
       lastFetchedUserId = userId;
-
-      if (isMounted) {
-        setLoading(true);
-      }
 
       try {
         console.log('useAuth: Iniciando busca do perfil para o ID:', userId);
@@ -56,50 +79,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('useAuth: Erro técnico ao buscar perfil do banco de dados:', error);
           if (isMounted) {
             setProfile(null);
+            window.localStorage.removeItem('mp_user_profile');
           }
         } else {
           console.log('useAuth: Perfil carregado com sucesso:', data);
           if (isMounted) {
             setProfile(data);
+            window.localStorage.setItem('mp_user_profile', JSON.stringify(data));
           }
         }
       } catch (err) {
         console.error('useAuth: Erro inesperado ao obter perfil:', err);
         if (isMounted) {
           setProfile(null);
+          window.localStorage.removeItem('mp_user_profile');
         }
       } finally {
+        isFetching = false;
         if (isMounted) {
           setLoading(false);
         }
       }
     };
 
-    const initAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!isMounted) return;
-
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-
-        if (currentUser) {
-          await fetchProfileData(currentUser.id);
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error('useAuth: Erro na inicialização da autenticação:', err);
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    initAuth();
-
-    // Listen for auth changes
+    // Listen for auth changes (this handles both INITIAL_SESSION and any subsequent auth events)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('useAuth: Mudança de estado da autenticação detectada. Evento:', event);
       if (!isMounted) return;
@@ -108,22 +111,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(currentUser);
 
       if (currentUser) {
+        window.localStorage.setItem('mp_auth_user', JSON.stringify(currentUser));
         await fetchProfileData(currentUser.id);
       } else {
         lastFetchedUserId = null;
         setProfile(null);
         setLoading(false);
+        window.localStorage.removeItem('mp_auth_user');
+        window.localStorage.removeItem('mp_user_profile');
       }
     });
+
+    // Safety timeout fallback to prevent infinite loading screen
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted) {
+        setLoading((currentLoading) => {
+          if (currentLoading) {
+            console.warn('useAuth: Timeout de segurança de 4.5s atingido. Destravando tela de carregamento.');
+            return false;
+          }
+          return currentLoading;
+        });
+      }
+    }, 4500);
+
+    // If we already have a cached profile, trigger a background refresh instead of a blocking load
+    if (user) {
+      fetchProfileData(user.id);
+    } else {
+      setLoading(false);
+    }
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      clearTimeout(safetyTimeout);
     };
   }, []);
 
   const signOut = async () => {
     try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('mp_auth_user');
+        window.localStorage.removeItem('mp_user_profile');
+      }
+      setUser(null);
+      setProfile(null);
       await supabase.auth.signOut();
     } catch (error) {
       console.error('Error signing out:', error);

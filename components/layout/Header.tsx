@@ -67,7 +67,9 @@ export const Header = () => {
               <Search size={20} />
             </button>
             
-            {user ? (
+            {!mounted ? (
+              <div className="w-[100px] h-10 bg-zinc-100 rounded-full animate-pulse" />
+            ) : user ? (
               <div className="relative">
                 <button 
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}

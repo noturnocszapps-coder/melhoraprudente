@@ -6,6 +6,7 @@ import { Footer } from "@/components/layout/Footer";
 import { AuthProvider } from "@/hooks/useAuth";
 import { BlockedUserGuard } from "@/components/auth/BlockedUserGuard";
 import AnalyticsTracker from "@/components/layout/AnalyticsTracker";
+import AdSenseScript from "@/components/ads/AdSenseScript";
 
 const inter = Inter({ subsets: ["latin"], display: "swap" });
 
@@ -89,7 +90,7 @@ export default function RootLayout({
         "url": "https://melhoraprudente.com.br",
         "logo": {
           "@type": "ImageObject",
-          "url": "https://images.unsplash.com/photo-1449034446853-66c86144b0ad?auto=format&fit=crop&q=80&w=192&h=192",
+          "url": "https://melhoraprudente.com.br/logo.jpg",
           "width": 192,
           "height": 192
         },
@@ -132,6 +133,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.className} text-zinc-900 antialiased selection:bg-red-100 selection:text-red-900`}>
+        <AdSenseScript />
         <AnalyticsTracker />
         <AuthProvider>
           <BlockedUserGuard>

@@ -963,7 +963,7 @@ export const engagementService = {
       // Buscar comentários com o perfil do usuário para saber a role do autor
       const { data, error } = await supabase
         .from('news_comments')
-        .select('*, user:profiles(full_name, avatar_url, role)')
+        .select('*, user:profiles!news_comments_user_id_fkey(full_name, avatar_url, role)')
         .eq('news_id', newsId)
         .order('created_at', { ascending: true });
 
@@ -1371,6 +1371,78 @@ export const engagementService = {
     } catch (err) {
       console.error('Error fetching trending news:', err);
       return [];
+    }
+  },
+
+  async getMostReadLast24h(limit = 5): Promise<(News & { viewsCount: number })[]> {
+    try {
+      const newsList = await newsPortalService.getLatestNews(100);
+      let viewsList: any[] = [];
+      let loadedFromDb = false;
+
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from('news_views')
+            .select('*')
+            .gte('created_at', oneDayAgo);
+
+          if (!error && data) {
+            viewsList = data;
+            loadedFromDb = true;
+          }
+        } catch (dbErr) {
+          console.warn('Error fetching views from Supabase for most read 24h:', dbErr);
+        }
+      }
+
+      if (!loadedFromDb) {
+        viewsList = getStoredData<any[]>('mp_fallback_views', []);
+      }
+
+      // Filter views list to last 24 hours
+      const viewsLast24h = viewsList.filter(v => {
+        try {
+          return new Date(v.created_at).getTime() >= (Date.now() - 24 * 60 * 60 * 1000);
+        } catch {
+          return false;
+        }
+      });
+
+      // Group views by news_id
+      const viewCounts: { [newsId: string]: number } = {};
+      viewsLast24h.forEach(v => {
+        viewCounts[v.news_id] = (viewCounts[v.news_id] || 0) + 1;
+      });
+
+      // Map to news items
+      const newsWithViews = newsList.map(news => {
+        const viewsCount = viewCounts[news.id] || 0;
+        return {
+          ...news,
+          viewsCount
+        };
+      });
+
+      // Sort by viewsCount descending, then by created_at descending
+      const sorted = newsWithViews.sort((a, b) => {
+        if (b.viewsCount !== a.viewsCount) {
+          return b.viewsCount - a.viewsCount;
+        }
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      return sorted.slice(0, limit);
+    } catch (err) {
+      console.error('Error fetching most read news last 24h:', err);
+      try {
+        const fallbackNews = await newsPortalService.getLatestNews(limit);
+        return fallbackNews.map(n => ({ ...n, viewsCount: 0 }));
+      } catch {
+        return [];
+      }
     }
   }
 

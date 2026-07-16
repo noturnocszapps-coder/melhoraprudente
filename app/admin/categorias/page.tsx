@@ -102,48 +102,115 @@ export default function AdminCategories() {
           <p className="text-zinc-400 font-bold uppercase tracking-widest text-[10px]">Carregando categorias...</p>
         </div>
       ) : (
-        <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-zinc-50 border-bottom border-zinc-100">
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500">Nome</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500">Slug</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500">Descrição</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-50">
-              {categories.map((category) => (
-                <tr key={category.id} className="hover:bg-zinc-50/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <span className="font-bold text-zinc-900">{category.name}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-xs font-mono text-zinc-500">{category.slug}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-zinc-600 line-clamp-1">{category.description || '-'}</span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => openEditModal(category)}
-                        className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(category.id)}
-                        className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+        <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden shadow-sm">
+          
+          {/* DESKTOP VIEW: TABLE */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-zinc-50 border-b border-zinc-100">
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500">Nome</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500">Slug</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500">Descrição</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-zinc-50">
+                {categories.length > 0 ? (
+                  categories.map((category) => (
+                    <tr key={category.id} className="hover:bg-zinc-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <span className="font-bold text-zinc-900">{category.name}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-mono text-zinc-500 bg-zinc-50 px-2 py-1 rounded border border-zinc-100">{category.slug}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-zinc-600 line-clamp-1">{category.description || '-'}</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => openEditModal(category)}
+                            title="Editar Categoria"
+                            className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all min-w-10 min-h-10 flex items-center justify-center"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(category.id)}
+                            title="Excluir Categoria"
+                            className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all min-w-10 min-h-10 flex items-center justify-center"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-zinc-400 italic text-sm">
+                      Nenhuma categoria cadastrada.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* MOBILE VIEW: CARDS */}
+          <div className="block md:hidden p-4 space-y-4">
+            {categories.length > 0 ? (
+              categories.map((category) => (
+                <div 
+                  key={category.id} 
+                  className="bg-white p-4 rounded-xl border border-zinc-200 flex flex-col gap-3 transition-colors hover:border-zinc-300 min-w-0"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-extrabold text-sm text-zinc-900 break-words">
+                      {category.name}
+                    </span>
+                    <span className="text-[10px] font-mono text-zinc-500 bg-zinc-50 px-2 py-0.5 rounded border border-zinc-150">
+                      {category.slug}
+                    </span>
+                  </div>
+
+                  {category.description ? (
+                    <p className="text-xs text-zinc-500 leading-relaxed break-words">
+                      {category.description}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-zinc-400 italic font-medium">
+                      Sem descrição cadastrada
+                    </p>
+                  )}
+
+                  <div className="flex items-center justify-end gap-2 border-t border-zinc-100 pt-3">
+                    <button
+                      onClick={() => openEditModal(category)}
+                      className="flex-1 max-w-[120px] h-10 border border-zinc-200 hover:bg-zinc-50 rounded-xl text-zinc-700 text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <Edit2 size={14} />
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => handleDelete(category.id)}
+                      className="flex-1 max-w-[120px] h-10 border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                      Excluir
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-8 text-center text-zinc-400 italic text-xs uppercase font-bold">
+                Nenhuma categoria cadastrada.
+              </div>
+            )}
+          </div>
+
         </div>
       )}
 
