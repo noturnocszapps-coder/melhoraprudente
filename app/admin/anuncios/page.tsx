@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Loader2, Plus, Trash2, Edit, Save, ExternalLink, AlertCircle, Image as ImageIcon } from 'lucide-react';
 import { Ad } from '@/types';
+import { useAdminCache } from '../context/AdminCacheContext';
 
 const SLOT_SIZES: Record<string, string> = {
   home_top: '728x90px',
@@ -20,8 +21,7 @@ const SLOT_SIZES: Record<string, string> = {
 };
 
 export default function AdminAds() {
-  const [ads, setAds] = useState<Ad[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { ads, adsLoading: loading, refreshAds } = useAdminCache();
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
@@ -40,7 +40,7 @@ export default function AdminAds() {
   const [brokenAdIds, setBrokenAdIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    fetchAds();
+    refreshAds();
   }, []);
 
   // Reset form image error when image URL changes
@@ -50,17 +50,9 @@ export default function AdminAds() {
 
   const fetchAds = async () => {
     try {
-      const { data, error } = await supabase
-        .from('ads')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setAds(data || []);
+      await refreshAds();
     } catch (error) {
       console.error('Error fetching ads:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -148,7 +140,7 @@ export default function AdminAds() {
     }
   };
 
-  if (loading) return (
+  if (loading && ads.length === 0) return (
     <div className="py-20 flex flex-col items-center gap-4">
       <Loader2 className="animate-spin text-red-600" size={32} />
       <p className="text-zinc-400 font-bold uppercase tracking-widest text-[10px]">Carregando anúncios...</p>

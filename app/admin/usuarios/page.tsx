@@ -27,15 +27,13 @@ import {
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import { Profile, Role, UserStatus } from '@/types';
+import { useAdminCache } from '../context/AdminCacheContext';
 
 export default function AdminUsers() {
   const { profile: currentAdmin, isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [users, setUsers] = useState<Profile[]>([]);
-  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
-  const [postCounts, setPostCounts] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
+  const { users, commentCounts, postCounts, usersLoading: loading, refreshUsers, setUsers } = useAdminCache();
   
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,88 +75,17 @@ export default function AdminUsers() {
 
   useEffect(() => {
     if (currentAdmin && isAdmin) {
-      fetchUsersData();
+      refreshUsers();
     }
   }, [currentAdmin, isAdmin]);
 
   const fetchUsersData = async () => {
-    setLoading(true);
     setFeedback(null);
     try {
-      // 1. Fetch profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*');
-      
-      if (profilesError) throw profilesError;
-
-      // 2. Fetch comments count
-      let comments: any[] = [];
-      let commentsErrorOccurred = false;
-      try {
-        const { data, error } = await supabase
-          .from('news_comments')
-          .select('id, user_id, status');
-        if (error) throw error;
-        if (data) {
-          comments = data;
-        }
-      } catch (e: any) {
-        console.warn('Could not fetch comments count from news_comments:', e.message || e);
-        commentsErrorOccurred = true;
-      }
-      
-      // 3. Fetch news count
-      let newsItems: any[] = [];
-      let newsErrorOccurred = false;
-      try {
-        const { data, error } = await supabase
-          .from('news')
-          .select('id, author_id');
-        if (error) throw error;
-        if (data) {
-          newsItems = data;
-        }
-      } catch (e: any) {
-        console.warn('Could not fetch news count:', e.message || e);
-        newsErrorOccurred = true;
-      }
-
-      const countsComments: Record<string, number> = {};
-      if (commentsErrorOccurred) {
-        profiles?.forEach(u => {
-          countsComments[u.id] = -1; // Sinalizador especial de consulta indisponível
-        });
-      } else {
-        comments.forEach(c => {
-          // Contamos preferencialmente os comentários aprovados ('approved')
-          if (c.status === 'approved') {
-            countsComments[c.user_id] = (countsComments[c.user_id] || 0) + 1;
-          }
-        });
-      }
-
-      const countsPosts: Record<string, number> = {};
-      if (newsErrorOccurred) {
-        profiles?.forEach(u => {
-          countsPosts[u.id] = -1; // Sinalizador especial de consulta indisponível
-        });
-      } else {
-        newsItems.forEach(p => {
-          if (p.author_id) {
-            countsPosts[p.author_id] = (countsPosts[p.author_id] || 0) + 1;
-          }
-        });
-      }
-
-      setCommentCounts(countsComments);
-      setPostCounts(countsPosts);
-      setUsers(profiles || []);
+      await refreshUsers();
     } catch (error: any) {
       console.error('Error fetching users data:', error);
       setFeedback({ type: 'error', message: 'Erro ao carregar dados dos usuários: ' + error.message });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -340,7 +267,7 @@ export default function AdminUsers() {
     return 0;
   });
 
-  if (authLoading || loading) {
+  if (authLoading || (loading && users.length === 0)) {
     return (
       <div className="py-24 flex flex-col items-center justify-center gap-4">
         <Loader2 className="animate-spin text-red-600" size={40} />

@@ -18,23 +18,12 @@ import {
   CheckCircle, 
   AlertTriangle 
 } from 'lucide-react';
-import { engagementService, newsPortalService } from '@/services';
+import { useAdminCache } from './context/AdminCacheContext';
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({
-    totalPosts: 0,
-    totalUsers: 0,
-    totalCategories: 0,
-    likesCount: 0,
-    commentsCount: 0,
-    viewsCount: 0,
-    sharesCount: 0
-  });
-  
-  const [trending, setTrending] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { stats, trending, growth, dashboardLoading, refreshDashboard } = useAdminCache();
 
-  // Observability & Growth metrics - marked as non-configured/waiting integration per instructions
+  // Observability metrics - marked as non-configured/waiting integration per instructions
   const [observability, setObservability] = useState({
     apiSuccessRate: 'Aguardando integração',
     dbLatency: 'Aguardando integração',
@@ -44,118 +33,13 @@ export default function AdminDashboard() {
     logsSize: 'Não configurado'
   });
 
-  const [growth, setGrowth] = useState({
-    dailyGrowth: '+8.3%',
-    weeklyGrowth: '+24.5%',
-    avgReadingTime: '2m 18s',
-    estimatedBounceRate: '38.4%'
-  });
-
   useEffect(() => {
-    // 1. Instantly load cache
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = window.localStorage.getItem('mp_admin_dashboard_stats');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed.stats && parsed.trending) {
-            setStats(parsed.stats);
-            setTrending(parsed.trending);
-            if (parsed.growth) setGrowth(parsed.growth);
-            setLoading(false); // Snappy instant mount!
-          }
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    const fetchStats = async () => {
-      try {
-        const safeCount = async (table: string) => {
-          try {
-            let q = supabase.from(table).select('id', { count: 'exact', head: true });
-            const { count, error } = await q;
-            if (error) throw error;
-            return count || 0;
-          } catch (e) {
-            console.warn(`Could not fetch count for ${table}:`, e);
-            return 0;
-          }
-        };
-
-        const [postsCount, usersCount, categoriesCount, engagementMetrics, trendingNews] = await Promise.all([
-          safeCount('news'),
-          safeCount('profiles'),
-          safeCount('categories'),
-          engagementService.getEngagementMetrics(),
-          engagementService.getTrendingNews(15) // Fetch top items to categorize
-        ]);
-
-        // Calculate dynamic reading time based on actual word counts
-        let totalWords = 0;
-        let articlesWithContent = 0;
-        trendingNews.forEach(item => {
-          if (item.content) {
-            totalWords += item.content.split(/\s+/).length;
-            articlesWithContent++;
-          }
-        });
-
-        const avgWords = articlesWithContent > 0 ? Math.round(totalWords / articlesWithContent) : 250;
-        // WPM average is ~200. Let's calculate minutes and seconds
-        const totalSeconds = Math.round((avgWords / 200) * 60);
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        const avgReadingStr = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
-
-        // Calculate dynamic bounce rate estimation
-        // More views / shares & comments -> lower bounce rate
-        const bounceBase = 45; // 45% standard
-        const engagementFactor = Math.min(20, (engagementMetrics.likesCount + engagementMetrics.commentsCount * 2 + engagementMetrics.sharesCount * 1.5) / Math.max(1, engagementMetrics.viewsCount) * 100);
-        const estimatedBounce = Math.max(28.5, bounceBase - engagementFactor).toFixed(1) + '%';
-
-        const freshStats = {
-          totalPosts: postsCount,
-          totalUsers: usersCount,
-          totalCategories: categoriesCount,
-          likesCount: engagementMetrics.likesCount,
-          commentsCount: engagementMetrics.commentsCount,
-          viewsCount: engagementMetrics.viewsCount,
-          sharesCount: engagementMetrics.sharesCount
-        };
-
-        const freshGrowth = {
-          dailyGrowth: `+${postsCount > 0 ? Math.min(20, Math.ceil(postsCount * 0.12)) : 0}%`,
-          weeklyGrowth: `+${postsCount > 0 ? Math.min(45, Math.ceil(postsCount * 0.28)) : 0}%`,
-          avgReadingTime: avgReadingStr,
-          estimatedBounceRate: estimatedBounce
-        };
-
-        // Set state
-        setStats(freshStats);
-        setTrending(trendingNews);
-        setGrowth(freshGrowth);
-
-        // Save to cache
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem('mp_admin_dashboard_stats', JSON.stringify({
-            stats: freshStats,
-            trending: trendingNews,
-            growth: freshGrowth
-          }));
-        }
-
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
+    refreshDashboard();
   }, []);
 
-  if (loading) return (
+  const hasNoData = stats.totalPosts === 0 && stats.totalUsers === 0 && trending.length === 0;
+
+  if (dashboardLoading && hasNoData) return (
     <div className="py-20 flex flex-col items-center gap-4">
       <Loader2 className="animate-spin text-red-600" size={32} />
       <p className="text-zinc-400 font-bold uppercase tracking-widest text-[10px]">Carregando estatísticas de observabilidade...</p>

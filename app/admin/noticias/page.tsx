@@ -27,6 +27,7 @@ import {
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { News } from '@/types';
 import { formatDate, cn } from '@/lib/utils';
+import { useAdminCache } from '../context/AdminCacheContext';
 
 type DateFilterType = 'all' | 'today' | '7days' | '30days' | 'this_month' | 'custom';
 type SortType = 'newest' | 'oldest' | 'most_viewed';
@@ -54,9 +55,7 @@ function setStoredData<T>(key: string, value: T): void {
 }
 
 export default function NewsList() {
-  const [newsList, setNewsList] = useState<News[]>([]);
-  const [categoriesList, setCategoriesList] = useState<string[]>(['all']);
-  const [loading, setLoading] = useState(true);
+  const { newsList, newsCategories: categoriesList, newsLoading: loading, refreshNews, setNewsList } = useAdminCache();
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   
   // Tabs & Search
@@ -92,156 +91,8 @@ export default function NewsList() {
   }, [debouncedSearch, activeTab, selectedCategory, dateFilter, startDate, endDate, sortBy]);
 
   useEffect(() => {
-    fetchNewsAndCategories();
+    refreshNews();
   }, []);
-
-  const fetchNewsAndCategories = async () => {
-    // 1. Instantly load fallbacks from local storage to keep navigation snappy
-    const cachedNews = getStoredData<any[]>('mp_fallback_posts', []);
-    const cachedCats = getStoredData<any[]>('mp_fallback_categories', []);
-    const localViews = getStoredData<any[]>('mp_fallback_views', []);
-
-    if (cachedCats.length > 0) {
-      setCategoriesList(['all', ...Array.from(new Set(cachedCats.map((c: any) => c.name)))]);
-    } else {
-      setCategoriesList(['all', 'Cidade', 'Política', 'Segurança', 'Esportes', 'Cultura', 'Geral']);
-    }
-
-    if (cachedNews.length > 0) {
-      const mapped = cachedNews.map((post: any) => ({
-        id: post.id,
-        title: post.title || 'Sem título',
-        slug: post.slug || '',
-        content: post.content || '',
-        excerpt: post.excerpt || '',
-        category: post.category || 'Geral',
-        status: post.status || 'draft',
-        author_id: post.author_id,
-        created_at: post.created_at,
-        updated_at: post.updated_at || post.created_at,
-        cover_image: post.cover_image || post.cover_image_url || null,
-        city_name: post.city_name || 'Presidente Prudente',
-        city_slug: post.city_slug || 'presidente-prudente',
-        region: post.region || 'SP',
-        viewsCount: localViews.filter((v: any) => v.news_id === post.id).length,
-        author: post.author || { full_name: 'Redação' }
-      }));
-      setNewsList(mapped as News[]);
-      setLoading(false); // Snappy instant load
-    } else {
-      setLoading(true);
-    }
-
-    // 2. Refresh from Supabase in the background
-    try {
-      await Promise.all([fetchNews(), fetchCategories()]);
-    } catch (e) {
-      console.error('Error fetching dashboard data:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase
-          .from('categories')
-          .select('name')
-          .eq('is_active', true)
-          .order('name', { ascending: true });
-        
-        if (error) throw error;
-        if (data && data.length > 0) {
-          setCategoriesList(['all', ...Array.from(new Set(data.map((c: any) => c.name)))]);
-          setStoredData('mp_fallback_categories', data);
-          return;
-        }
-      }
-      
-      // Fallback
-      const localCats = getStoredData<any[]>('mp_fallback_categories', []);
-      if (localCats.length > 0) {
-        setCategoriesList(['all', ...Array.from(new Set(localCats.map((c: any) => c.name)))]);
-      } else {
-        setCategoriesList(['all', 'Cidade', 'Política', 'Segurança', 'Esportes', 'Cultura', 'Geral']);
-      }
-    } catch (error) {
-      console.warn('Error fetching categories, using fallback list:', error);
-      setCategoriesList(['all', 'Cidade', 'Política', 'Segurança', 'Esportes', 'Cultura', 'Geral']);
-    }
-  };
-
-  const fetchNews = async () => {
-    try {
-      let fetchedNews: any[] = [];
-      
-      if (isSupabaseConfigured) {
-        // Fetch news and their views count using nested select on news_views table
-        const { data, error } = await supabase
-          .from('news')
-          .select('*, author:profiles(full_name), news_views(id)')
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        fetchedNews = data || [];
-      } else {
-        // Fallback local storage
-        fetchedNews = getStoredData<any[]>('mp_fallback_posts', []);
-      }
-
-      // Map profiles/views safely
-      const mapped = fetchedNews.map((post: any) => {
-        // Get views count
-        let viewsCount = 0;
-        if (isSupabaseConfigured) {
-          viewsCount = post.news_views ? post.news_views.length : 0;
-        } else {
-          // Fallback view counting
-          const localViews = getStoredData<any[]>('mp_fallback_views', []);
-          viewsCount = localViews.filter((v: any) => v.news_id === post.id).length;
-        }
-
-        return {
-          id: post.id,
-          title: post.title || 'Sem título',
-          slug: post.slug || '',
-          content: post.content || '',
-          excerpt: post.excerpt || '',
-          category: post.category || 'Geral',
-          status: post.status || 'draft',
-          author_id: post.author_id,
-          created_at: post.created_at,
-          updated_at: post.updated_at || post.created_at,
-          cover_image: post.cover_image || post.cover_image_url || null,
-          city_name: post.city_name || 'Presidente Prudente',
-          city_slug: post.city_slug || 'presidente-prudente',
-          region: post.region || 'SP',
-          viewsCount: viewsCount,
-          author: post.author || { full_name: 'Redação' }
-        };
-      });
-
-      setNewsList(mapped as News[]);
-      setStoredData('mp_fallback_posts', fetchedNews);
-    } catch (error: any) {
-      console.error('Error fetching news:', error);
-      // Fallback local storage on query error
-      const fallbackNews = getStoredData<any[]>('mp_fallback_posts', []);
-      const localViews = getStoredData<any[]>('mp_fallback_views', []);
-      
-      const mapped = fallbackNews.map((post: any) => ({
-        ...post,
-        viewsCount: localViews.filter((v: any) => v.news_id === post.id).length,
-        category: post.category || 'Geral',
-        status: post.status || 'draft',
-        city_name: post.city_name || 'Presidente Prudente',
-        city_slug: post.city_slug || 'presidente-prudente',
-        author: post.author || { full_name: 'Redação' }
-      }));
-      setNewsList(mapped as News[]);
-    }
-  };
 
   // Safe confirm deletion execution
   const executeDelete = async (id: string) => {
@@ -362,7 +213,7 @@ export default function NewsList() {
       }
 
       alert('Notícia duplicada com sucesso como Rascunho!');
-      await fetchNews();
+      await refreshNews();
     } catch (error: any) {
       console.error('Error duplicating news:', error);
       alert('Erro ao duplicar notícia: ' + (error.message || error));
@@ -474,7 +325,7 @@ export default function NewsList() {
     currentPage * itemsPerPage
   );
 
-  if (loading) return (
+  if (loading && newsList.length === 0) return (
     <div className="py-20 flex flex-col items-center justify-center gap-4">
       <Loader2 className="animate-spin text-red-600" size={36} />
       <p className="text-zinc-400 font-extrabold uppercase tracking-widest text-[10px]">Carregando Central de Notícias...</p>

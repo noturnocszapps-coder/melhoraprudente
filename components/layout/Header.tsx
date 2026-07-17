@@ -41,7 +41,7 @@ export const Header = () => {
         </div>
       </div>
 
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-2 sm:px-4">
         <div className="flex items-center justify-between h-16 md:h-24">
           {/* Mobile Menu Toggle */}
           <button 
@@ -52,8 +52,8 @@ export const Header = () => {
           </button>
 
           {/* Logo */}
-          <Link href="/" className="flex flex-col items-center lg:items-start min-w-0 flex-1 lg:flex-none mx-2">
-            <span className="text-lg min-[360px]:text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black tracking-tighter text-zinc-900 leading-none whitespace-nowrap truncate block w-full text-center lg:text-left">
+          <Link href="/" className="flex flex-col items-center lg:items-start min-w-0 flex-1 lg:flex-none mx-1 sm:mx-2">
+            <span className="text-[15px] min-[360px]:text-[17px] min-[390px]:text-[19px] sm:text-2xl md:text-3xl lg:text-4xl font-black tracking-tighter text-zinc-900 leading-none whitespace-nowrap block w-full text-center lg:text-left">
               MELHORA<span className="text-red-600">PRUDENTE</span>
             </span>
             <span className="hidden lg:block text-[10px] font-bold text-zinc-500 uppercase tracking-[0.3em] mt-1 whitespace-nowrap">

@@ -5,37 +5,21 @@ import { supabase } from '@/lib/supabase';
 import { Check, X, Trash2, Loader2, MessageSquare, User } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import { NewsComment } from '@/types';
+import { useAdminCache } from '../context/AdminCacheContext';
 
 export default function AdminComments() {
-  const [comments, setComments] = useState<NewsComment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { comments, commentsLoading: loading, refreshComments } = useAdminCache();
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
 
   useEffect(() => {
-    fetchComments();
+    refreshComments(filter);
   }, [filter]);
 
   const fetchComments = async () => {
-    setLoading(true);
     try {
-      let query = supabase
-        .from('news_comments')
-        .select('*, news:news!news_comments_news_id_fkey(title), user:profiles!news_comments_user_id_fkey(full_name, avatar_url)')
-        .order('created_at', { ascending: false });
-      
-      if (filter !== 'all') {
-        query = query.eq('status', filter);
-      }
-
-      const { data, error } = await query;
-      
-      if (error) throw error;
-      setComments(data || []);
+      await refreshComments(filter);
     } catch (error: any) {
       console.error('Error fetching comments:', error);
-      alert('Erro ao buscar comentários do banco de dados: ' + (error.message || error));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -105,7 +89,7 @@ export default function AdminComments() {
         </div>
       </div>
 
-      {loading ? (
+      {loading && comments.length === 0 ? (
         <div className="py-20 flex flex-col items-center gap-4">
           <Loader2 className="animate-spin text-red-600" size={32} />
           <p className="text-zinc-400 font-bold uppercase tracking-widest text-[10px]">Carregando comentários...</p>

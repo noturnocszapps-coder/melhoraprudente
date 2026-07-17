@@ -22,6 +22,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { AdminCacheProvider } from './context/AdminCacheContext';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { profile, isAdmin, isEditor, loading, signOut } = useAuth();
@@ -103,9 +104,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const filteredMenu = menuItems.filter(item => !item.adminOnly || isAdmin);
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-zinc-50">
-      {/* Mobile Sticky Header */}
-      <header className="flex md:hidden items-center justify-between px-4 py-3 bg-white border-b border-zinc-200 sticky top-0 z-40">
+    <AdminCacheProvider>
+      <div className="flex flex-col md:flex-row min-h-screen bg-zinc-50">
+        {/* Mobile Sticky Header */}
+        <header className="flex md:hidden items-center justify-between px-4 py-3 bg-white border-b border-zinc-200 sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsMobileMenuOpen(true)}
@@ -130,7 +132,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Mobile Drawer (Backdrop & Sidebar Overlay) */}
       <div className={cn(
         "fixed inset-0 z-50 md:hidden transition-opacity duration-300",
-        isMobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        isMobileMenuOpen ? "opacity-100 pointer-events-auto block" : "opacity-0 pointer-events-none hidden"
       )}>
         {/* Backdrop overlay */}
         <div 
@@ -164,6 +166,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             <Link
               href="/"
+              onClick={() => setIsMobileMenuOpen(false)}
               className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 mb-2 border-b border-zinc-100 pb-4"
             >
               <ArrowLeft size={20} />
@@ -173,6 +176,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link
                 key={item.path}
                 href={item.path}
+                onClick={() => setIsMobileMenuOpen(false)}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
                   pathname === item.path 
@@ -272,5 +276,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </main>
     </div>
+    </AdminCacheProvider>
   );
 }

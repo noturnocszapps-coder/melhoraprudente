@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 
 // Local helpers for robust offline/fallback data persistence
 function getStoredData<T>(key: string, defaultValue: T): T {
@@ -35,7 +36,9 @@ import {
   Shield, 
   FileText, 
   ExternalLink,
-  MessageSquare
+  MessageSquare,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Settings } from '@/types';
 import { cn } from '@/lib/utils';
@@ -76,7 +79,38 @@ const DEFAULT_EXTENDED_DATA: ExtendedCMSData = {
   terms_of_use: '',
 };
 
-type TabType = 'geral' | 'identidade' | 'contato' | 'seo' | 'adsense' | 'paginas';
+const DEFAULT_PAGES_MAP: Record<string, { title: string; content: string }> = {
+  'sobre-nos': { 
+    title: 'Quem Somos (Sobre Nós)', 
+    content: 'Fundado em 2024, o Melhora Prudente foi criado por um grupo de jornalistas independentes com um propósito claro: descentralizar a informação e dar voz ativa aos moradores de Presidente Prudente e de todas as cidades que compõem o Oeste Paulista.' 
+  },
+  'politica-privacidade': { 
+    title: 'Política de Privacidade & LGPD', 
+    content: 'Nossa política de privacidade descreve como coletamos e usamos dados sob a égide da LGPD.' 
+  },
+  'termos-de-uso': { 
+    title: 'Termos de Uso', 
+    content: 'Termos e regras de uso do portal Melhora Prudente.' 
+  },
+  'contato': { 
+    title: 'Contato', 
+    content: 'Entre em contato com nossa redação pelo e-mail contato@melhoraprudente.com.br ou pelo WhatsApp (18) 3221-0000.' 
+  },
+  'principios-editoriais': { 
+    title: 'Princípios Editoriais', 
+    content: 'Nossos princípios editoriais são fundamentados no jornalismo ético, apartidário, transparente e independente.' 
+  },
+  'correcoes': { 
+    title: 'Correções', 
+    content: 'Compromisso com a verdade. Se você encontrar algum erro em nossas reportagens, entre em contato.' 
+  },
+  'anuncie': { 
+    title: 'Anuncie Conosco', 
+    content: 'Veja os formatos e tamanhos disponíveis para divulgar sua empresa no portal Melhora Prudente.' 
+  },
+};
+
+type TabType = 'geral' | 'identidade' | 'contato' | 'seo' | 'adsense' | 'paginas' | 'seguranca';
 
 export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
@@ -104,125 +138,258 @@ export default function AdminSettings() {
   const [pageLoading, setPageLoading] = useState(false);
   const [pageSaving, setPageSaving] = useState(false);
 
+  // local cache for all pages to avoid sequential DB requests
+  const [pagesData, setPagesData] = useState<Record<string, { title: string; content: string }>>(DEFAULT_PAGES_MAP);
+  const [pagesFetchError, setPagesFetchError] = useState<string | null>(null);
+  const [settingsFetchError, setSettingsFetchError] = useState<string | null>(null);
+
+  // Security Tab States
+  const { user } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState<'Fraca' | 'Média' | 'Forte'>('Fraca');
+  const [securitySaving, setSecuritySaving] = useState(false);
+  const [securityError, setSecurityError] = useState<string | null>(null);
+  const [securitySuccess, setSecuritySuccess] = useState<string | null>(null);
+
   useEffect(() => {
-    fetchSettings();
+    initPageData();
   }, []);
 
   useEffect(() => {
-    fetchPageContent(selectedPageSlug);
-  }, [selectedPageSlug]);
+    // Instant tab/slug switches reading from locally populated cache
+    const page = pagesData[selectedPageSlug];
+    if (page) {
+      setPageTitle(page.title);
+      setPageContent(page.content);
+    } else {
+      setPageTitle('');
+      setPageContent('');
+    }
+  }, [selectedPageSlug, pagesData]);
 
-  const fetchSettings = async () => {
+  const initPageData = async () => {
+    setLoading(true);
+    
+    // Safety timeout: force loading false after 4.5 seconds
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+    }, 4500);
+
     try {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .single();
-      
-      if (error && error.code !== 'PGRST116') throw error;
-      
-      if (data) {
-        setDbId(data.id || '');
-        setSiteName(data.site_name || 'Melhora Prudente');
-        setLogoUrl(data.logo_url || null);
-        setFaviconUrl(data.favicon_url || null);
-        setWhatsapp(data.whatsapp || '');
-        setInstagram(data.instagram || '');
-        setFacebook(data.facebook || '');
-        setPrimaryColor(data.primary_color || '#dc2626');
-        setSecondaryColor(data.secondary_color || '#18181b');
+      // 1. Fetch settings (non-blocking)
+      try {
+        if (isSupabaseConfigured) {
+          const { data, error } = await supabase
+            .from('settings')
+            .select('*')
+            .single();
+          
+          if (error && error.code !== 'PGRST116') throw error;
+          
+          if (data) {
+            setDbId(data.id || '');
+            setSiteName(data.site_name || 'Melhora Prudente');
+            setLogoUrl(data.logo_url || null);
+            setFaviconUrl(data.favicon_url || null);
+            setWhatsapp(data.whatsapp || '');
+            setInstagram(data.instagram || '');
+            setFacebook(data.facebook || '');
+            setPrimaryColor(data.primary_color || '#dc2626');
+            setSecondaryColor(data.secondary_color || '#18181b');
 
-        // Parse extended settings from adsense_code if serialized
-        if (data.adsense_code && data.adsense_code.startsWith('{')) {
-          try {
-            const parsed = JSON.parse(data.adsense_code);
-            setExtendedData(prev => ({
-              ...DEFAULT_EXTENDED_DATA,
-              ...parsed
-            }));
-          } catch (e) {
-            console.error('Error parsing extended settings JSON:', e);
+            if (data.adsense_code && data.adsense_code.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(data.adsense_code);
+                setExtendedData(prev => ({
+                  ...DEFAULT_EXTENDED_DATA,
+                  ...parsed
+                }));
+              } catch (e) {
+                console.error('Error parsing extended settings JSON:', e);
+              }
+            } else if (data.adsense_code) {
+              setExtendedData(prev => ({
+                ...prev,
+                ads_txt_content: data.adsense_code || prev.ads_txt_content,
+              }));
+            }
+          } else {
+            // Load local if no DB data
+            const localSettings = getStoredData<any>('mp_cms_settings', null);
+            if (localSettings) {
+              setSiteName(localSettings.site_name || 'Melhora Prudente');
+              setLogoUrl(localSettings.logo_url || null);
+              setFaviconUrl(localSettings.favicon_url || null);
+              setWhatsapp(localSettings.whatsapp || '');
+              setInstagram(localSettings.instagram || '');
+              setFacebook(localSettings.facebook || '');
+              setPrimaryColor(localSettings.primary_color || '#dc2626');
+              setSecondaryColor(localSettings.secondary_color || '#18181b');
+            }
           }
-        } else if (data.adsense_code) {
-          // If adsense_code has raw code/text, preserve it in the ads_txt_content or publisher field
-          setExtendedData(prev => ({
-            ...prev,
-            ads_txt_content: data.adsense_code || prev.ads_txt_content,
-          }));
+        } else {
+          // Supabase not configured fallback
+          const localSettings = getStoredData<any>('mp_cms_settings', null);
+          if (localSettings) {
+            setSiteName(localSettings.site_name || 'Melhora Prudente');
+            setLogoUrl(localSettings.logo_url || null);
+            setFaviconUrl(localSettings.favicon_url || null);
+            setWhatsapp(localSettings.whatsapp || '');
+            setInstagram(localSettings.instagram || '');
+            setFacebook(localSettings.facebook || '');
+            setPrimaryColor(localSettings.primary_color || '#dc2626');
+            setSecondaryColor(localSettings.secondary_color || '#18181b');
+          }
+        }
+      } catch (err: any) {
+        console.error('Failed to fetch settings from Supabase:', err);
+        setSettingsFetchError(err?.message || 'Erro ao carregar configurações do banco');
+        
+        // Fallback to local
+        const localSettings = getStoredData<any>('mp_cms_settings', null);
+        if (localSettings) {
+          setSiteName(localSettings.site_name || 'Melhora Prudente');
+          setLogoUrl(localSettings.logo_url || null);
+          setFaviconUrl(localSettings.favicon_url || null);
+          setWhatsapp(localSettings.whatsapp || '');
+          setInstagram(localSettings.instagram || '');
+          setFacebook(localSettings.facebook || '');
+          setPrimaryColor(localSettings.primary_color || '#dc2626');
+          setSecondaryColor(localSettings.secondary_color || '#18181b');
         }
       }
-    } catch (error) {
-      console.error('Error fetching settings:', error);
+
+      // 2. Fetch pages (non-blocking)
+      try {
+        let loadedPages: Record<string, { title: string; content: string }> = { ...DEFAULT_PAGES_MAP };
+        
+        // Load local fallbacks first
+        const localPages = getStoredData<any[]>('mp_fallback_pages', []);
+        localPages.forEach(p => {
+          if (p.slug) {
+            loadedPages[p.slug] = { title: p.title || '', content: p.content || '' };
+          }
+        });
+
+        if (isSupabaseConfigured) {
+          const { data, error } = await supabase
+            .from('pages')
+            .select('*');
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            data.forEach((p: any) => {
+              if (p.slug) {
+                loadedPages[p.slug] = { title: p.title || '', content: p.content || '' };
+              }
+            });
+          }
+        }
+
+        setPagesData(loadedPages);
+      } catch (err: any) {
+        console.error('Failed to fetch pages from Supabase:', err);
+        setPagesFetchError(err?.message || 'Erro ao carregar páginas do banco de dados (usando conteúdo local/fallback)');
+      }
+
+    } catch (err) {
+      console.error('General initialization error:', err);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
 
-  const fetchPageContent = async (slug: string) => {
-    setPageLoading(true);
+  const evaluatePasswordStrength = (pwd: string) => {
+    if (!pwd) {
+      setPasswordStrength('Fraca');
+      return;
+    }
+    let score = 0;
+    if (pwd.length >= 8) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[a-z]/.test(pwd)) score++;
+    if (/[0-9]/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+
+    if (score <= 2) {
+      setPasswordStrength('Fraca');
+    } else if (score <= 4) {
+      setPasswordStrength('Média');
+    } else {
+      setPasswordStrength('Forte');
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSecurityError(null);
+    setSecuritySuccess(null);
+
+    if (!user || !user.email) {
+      setSecurityError('Usuário não identificado ou não autenticado.');
+      return;
+    }
+
+    if (!currentPassword) {
+      setSecurityError('A senha atual é obrigatória.');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setSecurityError('A nova senha deve ter no mínimo 8 caracteres.');
+      return;
+    }
+
+    if (newPassword === currentPassword) {
+      setSecurityError('A nova senha deve ser diferente da senha atual.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setSecurityError('A nova senha e a confirmação não coincidem.');
+      return;
+    }
+
+    setSecuritySaving(true);
     try {
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase
-          .from('pages')
-          .select('*')
-          .eq('slug', slug)
-          .maybeSingle();
+      // 1. Reauthenticate user with email & currentPassword
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword
+      });
 
-        if (error) throw error;
-
-        if (data) {
-          setPageTitle(data.title || '');
-          setPageContent(data.content || '');
-          setPageLoading(false);
-          return;
-        }
+      if (signInError) {
+        console.error('Reauthentication failed:', signInError);
+        setSecurityError('Senha atual incorreta.');
+        setSecuritySaving(false);
+        return;
       }
 
-      // Fallback to local
-      const localPages = getStoredData<any[]>('mp_fallback_pages', []);
-      const found = localPages.find(p => p.slug === slug);
-      if (found) {
-        setPageTitle(found.title);
-        setPageContent(found.content);
-      } else {
-        const defaults: Record<string, {title: string, content: string}> = {
-          'sobre-nos': { 
-            title: 'Quem Somos (Sobre Nós)', 
-            content: 'Fundado em 2024, o Melhora Prudente foi criado por um grupo de jornalistas independentes com um propósito claro: descentralizar a informação e dar voz ativa aos moradores de Presidente Prudente e de todas as cidades que compõem o Oeste Paulista.' 
-          },
-          'politica-privacidade': { 
-            title: 'Política de Privacidade & LGPD', 
-            content: 'Nossa política de privacidade descreve como coletamos e usamos dados sob a égide da LGPD.' 
-          },
-          'termos-de-uso': { 
-            title: 'Termos de Uso', 
-            content: 'Termos e regras de uso do portal Melhora Prudente.' 
-          },
-          'contato': { 
-            title: 'Contato', 
-            content: 'Entre em contato com nossa redação pelo e-mail contato@melhoraprudente.com.br ou pelo WhatsApp (18) 3221-0000.' 
-          },
-          'principios-editoriais': { 
-            title: 'Princípios Editoriais', 
-            content: 'Nossos princípios editoriais são fundamentados no jornalismo ético, apartidário, transparente e independente.' 
-          },
-          'correcoes': { 
-            title: 'Correções', 
-            content: 'Compromisso com a verdade. Se você encontrar algum erro em nossas reportagens, entre em contato.' 
-          },
-          'anuncie': { 
-            title: 'Anuncie Conosco', 
-            content: 'Veja os formatos e tamanhos disponíveis para divulgar sua empresa no portal Melhora Prudente.' 
-          },
-        };
-        const def = defaults[slug] || { title: slug, content: '' };
-        setPageTitle(def.title);
-        setPageContent(def.content);
+      // 2. Only if reauth works, update user password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (updateError) {
+        throw updateError;
       }
-    } catch (e) {
-      console.error('Error fetching page content:', e);
+
+      setSecuritySuccess('Senha alterada com sucesso!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: any) {
+      console.error('Error updating password:', error);
+      setSecurityError(error.message || 'Erro ao atualizar a senha.');
     } finally {
-      setPageLoading(false);
+      setSecuritySaving(false);
     }
   };
 
@@ -270,6 +437,12 @@ export default function AdminSettings() {
       }
       setStoredData('mp_fallback_pages', localPages);
 
+      // Update pagesData state local copy
+      setPagesData(prev => ({
+        ...prev,
+        [selectedPageSlug]: { title: pageTitle, content: pageContent }
+      }));
+
       alert(`Página "${pageTitle}" salva com sucesso!`);
     } catch (error: any) {
       console.error('Error saving page:', error);
@@ -298,23 +471,29 @@ export default function AdminSettings() {
         adsense_code: serializedExtended,
       };
 
-      let error;
-      if (dbId) {
-        const { error: updateError } = await supabase
-          .from('settings')
-          .update(payload)
-          .eq('id', dbId);
-        error = updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('settings')
-          .insert([payload]);
-        error = insertError;
+      // Always save to fallback
+      setStoredData('mp_cms_settings', payload);
+
+      if (isSupabaseConfigured) {
+        let error;
+        if (dbId) {
+          const { error: updateError } = await supabase
+            .from('settings')
+            .update(payload)
+            .eq('id', dbId);
+          error = updateError;
+        } else {
+          const { error: insertError } = await supabase
+            .from('settings')
+            .insert([payload]);
+          error = insertError;
+        }
+
+        if (error) throw error;
       }
 
-      if (error) throw error;
       alert('Configurações do CMS salvas com sucesso!');
-      await fetchSettings();
+      await initPageData();
     } catch (error: any) {
       console.error('Error saving settings:', error);
       alert('Erro ao salvar as configurações: ' + (error.message || error));
@@ -346,13 +525,15 @@ export default function AdminSettings() {
             Gerencie, edite e acompanhe todas as páginas, SEO, anúncios e identidades do portal.
           </p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full md:w-auto bg-zinc-950 hover:bg-zinc-800 text-white font-black uppercase tracking-widest px-8 py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-xs"
-        >
-          {saving ? <Loader2 className="animate-spin" size={16} /> : <><Save size={16} /> Salvar Tudo</>}
-        </button>
+        {activeTab !== 'seguranca' && activeTab !== 'paginas' && (
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full md:w-auto bg-zinc-950 hover:bg-zinc-800 text-white font-black uppercase tracking-widest px-8 py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-xs"
+          >
+            {saving ? <Loader2 className="animate-spin" size={16} /> : <><Save size={16} /> Salvar Tudo</>}
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -364,6 +545,7 @@ export default function AdminSettings() {
           { id: 'seo', label: 'SEO & Analytics', icon: Search },
           { id: 'adsense', label: 'AdSense', icon: Sparkles },
           { id: 'paginas', label: 'Páginas do Site', icon: FileText },
+          { id: 'seguranca', label: 'Segurança', icon: Shield },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -781,8 +963,136 @@ export default function AdminSettings() {
             </div>
           )}
 
+          {/* TAB: SEGURANÇA */}
+          {activeTab === 'seguranca' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-100 pb-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-zinc-900">Segurança da Conta</h3>
+                <p className="text-[11px] text-zinc-400 mt-1">Altere sua senha de acesso ao painel administrativo com segurança.</p>
+              </div>
+
+              <div className="max-w-md space-y-6">
+                {/* Current Password */}
+                <div className="space-y-2 relative">
+                  <label className="text-xs font-black uppercase tracking-widest text-zinc-400">Senha Atual</label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      required
+                      value={currentPassword}
+                      onChange={e => setCurrentPassword(e.target.value)}
+                      className="w-full bg-zinc-50 border-none rounded-xl py-3 pl-4 pr-12 text-sm focus:ring-2 focus:ring-red-600 transition-all font-bold"
+                      placeholder="Sua senha atual"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-zinc-400 hover:text-zinc-600"
+                    >
+                      {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* New Password */}
+                <div className="space-y-2 relative">
+                  <label className="text-xs font-black uppercase tracking-widest text-zinc-400">Nova Senha</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      value={newPassword}
+                      onChange={e => {
+                        setNewPassword(e.target.value);
+                        evaluatePasswordStrength(e.target.value);
+                      }}
+                      className="w-full bg-zinc-50 border-none rounded-xl py-3 pl-4 pr-12 text-sm focus:ring-2 focus:ring-red-600 transition-all font-bold"
+                      placeholder="Mínimo de 8 caracteres"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-zinc-400 hover:text-zinc-600"
+                    >
+                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  {/* Password Strength Indicator */}
+                  {newPassword && (
+                    <div className="pt-1.5 flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                        <div 
+                          className={cn(
+                            "h-full transition-all duration-300",
+                            passwordStrength === 'Fraca' && "bg-red-500 w-1/3",
+                            passwordStrength === 'Média' && "bg-yellow-500 w-2/3",
+                            passwordStrength === 'Forte' && "bg-green-500 w-full"
+                          )}
+                        />
+                      </div>
+                      <span className={cn(
+                        "text-[10px] font-black uppercase tracking-wider",
+                        passwordStrength === 'Fraca' && "text-red-500",
+                        passwordStrength === 'Média' && "text-yellow-600",
+                        passwordStrength === 'Forte' && "text-green-600"
+                      )}>
+                        Força: {passwordStrength}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Confirm New Password */}
+                <div className="space-y-2 relative">
+                  <label className="text-xs font-black uppercase tracking-widest text-zinc-400">Confirmar Nova Senha</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      className="w-full bg-zinc-50 border-none rounded-xl py-3 pl-4 pr-12 text-sm focus:ring-2 focus:ring-red-600 transition-all font-bold"
+                      placeholder="Confirme sua nova senha"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-zinc-400 hover:text-zinc-600"
+                    >
+                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status/Feedback Messages */}
+                {securityError && (
+                  <div className="bg-red-50 border border-red-100 text-red-600 rounded-xl p-4 text-xs font-bold leading-relaxed">
+                    {securityError}
+                  </div>
+                )}
+                {securitySuccess && (
+                  <div className="bg-green-50 border border-green-100 text-green-700 rounded-xl p-4 text-xs font-bold leading-relaxed">
+                    {securitySuccess}
+                  </div>
+                )}
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={(e) => handleUpdatePassword(e)}
+                    disabled={securitySaving}
+                    className="w-full bg-zinc-950 hover:bg-zinc-800 text-white font-black uppercase tracking-widest px-6 py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-xs"
+                  >
+                    {securitySaving ? <Loader2 className="animate-spin" size={16} /> : "Alterar Senha"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Action Footer */}
-          {activeTab !== 'paginas' && (
+          {activeTab !== 'paginas' && activeTab !== 'seguranca' && (
             <div className="flex justify-end pt-6 border-t border-zinc-100">
               <button
                 type="submit"

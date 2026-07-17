@@ -5,29 +5,25 @@ import { supabase } from '@/lib/supabase';
 import { Plus, Edit2, Trash2, Loader2, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Category } from '@/types';
+import { useAdminCache } from '../context/AdminCacheContext';
 
 export default function AdminCategories() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { categories, categoriesLoading: loading, refreshCategories } = useAdminCache();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState({ name: '', slug: '', description: '' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchCategories();
+    refreshCategories();
   }, []);
 
   const fetchCategories = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name');
-    
-    if (error) console.error('Error fetching categories:', error);
-    else setCategories(data || []);
-    setLoading(false);
+    try {
+      await refreshCategories();
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -96,7 +92,7 @@ export default function AdminCategories() {
         </button>
       </div>
 
-      {loading ? (
+      {loading && categories.length === 0 ? (
         <div className="py-20 flex flex-col items-center gap-4">
           <Loader2 className="animate-spin text-red-600" size={32} />
           <p className="text-zinc-400 font-bold uppercase tracking-widest text-[10px]">Carregando categorias...</p>
