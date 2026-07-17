@@ -2,13 +2,13 @@ import { MetadataRoute } from 'next'
  
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Melhora Prudente',
-    short_name: 'Melhora Prudente',
-    description: 'O seu portal de notícias local de Presidente Prudente e Região do Oeste Paulista.',
+    name: 'Roxou',
+    short_name: 'Roxou',
+    description: 'Tecnologia, Mídia e Experiências.',
     start_url: '/',
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#dc2626',
+    background_color: '#000000',
+    theme_color: '#a855f7',
     icons: [
       {
         src: '/logo.jpg',

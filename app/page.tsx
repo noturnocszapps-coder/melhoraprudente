@@ -6,7 +6,7 @@ import NewsCarousel from '@/components/news/NewsCarousel';
 import { newsPortalService, engagementService } from '@/services';
 import { News } from '@/types';
 import AdSlot from '@/components/AdSlot';
-import { FileText, Plus, Flame, Sparkles } from 'lucide-react';
+import { FileText, Flame, Sparkles } from 'lucide-react';
 import TrendingWidget from '@/components/engagement/TrendingWidget';
 import AudienceWidget from '@/components/news/AudienceWidget';
 
@@ -35,9 +35,7 @@ export default async function Home() {
   }
 
   // Filter out actual local breaking news (marked with is_breaking or title contains 'PLANTÃO'/'URGENTE')
-  const breakingNews = allNews.filter(news => news.is_breaking).slice(0, 5);
-  const fallbackBreaking = allNews.slice(0, 4);
-  const finalBreakingNews = breakingNews.length > 0 ? breakingNews : fallbackBreaking;
+  const finalBreakingNews = allNews.filter(news => news.is_breaking).slice(0, 5);
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
@@ -144,18 +142,10 @@ export default async function Home() {
             </div>
             <div className="space-y-2">
               <h3 className="text-xl font-black uppercase tracking-tighter text-zinc-900">Nenhuma notícia publicada ainda</h3>
-              <p className="text-zinc-500 text-sm max-w-sm mx-auto font-medium">
-                Seja o primeiro a publicar uma matéria no portal Melhora Prudente. Vá até o painel administrativo.
+              <p className="text-zinc-500 text-sm max-w-md mx-auto font-medium leading-relaxed">
+                Novas notícias serão publicadas em breve.<br />
+                Acompanhe o Melhora Prudente para ficar informado sobre Presidente Prudente e região.
               </p>
-            </div>
-            <div className="pt-2">
-              <Link 
-                href="/admin/noticias/nova" 
-                className="bg-zinc-900 hover:bg-zinc-800 text-white font-black uppercase tracking-widest text-xs py-3.5 px-8 rounded-2xl inline-flex items-center gap-2 transition-all shadow-md"
-              >
-                <Plus size={16} />
-                Escrever Notícia
-              </Link>
             </div>
           </div>
         )}

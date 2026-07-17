@@ -1,6 +1,6 @@
 {
   "name": "Melhora Prudente",
-  "description": "Portal de notícias local focado em Presidente Prudente e região, com foco em velocidade, SEO e monetização.",
+  "description": "Portal de notícias de Presidente Prudente e região integrada com o site oficial institucional Roxou (midia.roxou.com.br) para tecnologia, mídia e audiovisual.",
   "requestFramePermissions": [
     "geolocation"
   ],

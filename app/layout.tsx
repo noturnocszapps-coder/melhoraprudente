@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { BlockedUserGuard } from "@/components/auth/BlockedUserGuard";
 import AnalyticsTracker from "@/components/layout/AnalyticsTracker";
 import AdSenseScript from "@/components/ads/AdSenseScript";
+import { headers } from "next/headers";
 
 const inter = Inter({ subsets: ["latin"], display: "swap" });
 
@@ -75,11 +76,14 @@ export const metadata: Metadata = {
   }
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headersList = await headers();
+  const isMidia = headersList.get('x-is-midia') === 'true';
+
   const schemaOrg = {
     "@context": "https://schema.org",
     "@graph": [
@@ -123,30 +127,41 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className={isMidia ? "dark" : ""}>
       <head>
         <link rel="preconnect" href="https://images.unsplash.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://picsum.photos" crossOrigin="anonymous" />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrg) }}
-        />
+        {!isMidia && (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrg) }}
+          />
+        )}
       </head>
-      <body className={`${inter.className} text-zinc-900 antialiased selection:bg-red-100 selection:text-red-900`}>
-        <AdSenseScript />
-        <AnalyticsTracker />
-        <AuthProvider>
-          <BlockedUserGuard>
-            <div className="flex flex-col min-h-screen">
-              <Header />
-              <main className="flex-1">
-                {children}
-              </main>
-              <Footer />
-            </div>
-          </BlockedUserGuard>
-        </AuthProvider>
-      </body>
+      {isMidia ? (
+        <body className={`${inter.className} bg-black text-white antialiased selection:bg-purple-900 selection:text-purple-100 min-h-screen flex flex-col`}>
+          <AnalyticsTracker />
+          <main className="flex-1 w-full">
+            {children}
+          </main>
+        </body>
+      ) : (
+        <body className={`${inter.className} text-zinc-900 antialiased selection:bg-red-100 selection:text-red-900`}>
+          <AdSenseScript />
+          <AnalyticsTracker />
+          <AuthProvider>
+            <BlockedUserGuard>
+              <div className="flex flex-col min-h-screen">
+                <Header />
+                <main className="flex-1">
+                  {children}
+                </main>
+                <Footer />
+              </div>
+            </BlockedUserGuard>
+          </AuthProvider>
+        </body>
+      )}
     </html>
   );
 }

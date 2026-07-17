@@ -146,7 +146,7 @@ export const Header = () => {
           <div className="absolute top-0 left-0 bottom-0 w-[280px] bg-white shadow-2xl animate-in slide-in-from-left duration-300">
             <div className="p-6 flex flex-col h-full">
               <div className="flex items-center justify-between mb-10">
-                <span className="text-xl font-black tracking-tighter">
+                <span className="text-xl font-black tracking-tighter text-zinc-900 leading-none">
                   MELHORA<span className="text-red-600">PRUDENTE</span>
                 </span>
                 <button onClick={() => setIsMenuOpen(false)} className="p-2 text-zinc-400">
