@@ -40,6 +40,18 @@ const nextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'presidenteprudente.sp.gov.br',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'http',
+        hostname: 'presidenteprudente.sp.gov.br',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
   async headers() {

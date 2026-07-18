@@ -52,14 +52,17 @@ export default function NewsCarousel({ newsItems }: NewsCarouselProps) {
   }
 
   const currentItem = carouselItems[currentIndex];
-  const defaultImage = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&q=80&w=1200';
+
+  if (currentItem === undefined) {
+    return null;
+  }
 
   // State to handle images that might 404 upstream
-  const [imgSrc, setImgSrc] = useState<string>(currentItem?.cover_image || defaultImage);
+  const [imgSrc, setImgSrc] = useState<string | null>(currentItem?.cover_image || null);
 
   useEffect(() => {
     if (currentItem) {
-      setImgSrc(currentItem.cover_image || defaultImage);
+      setImgSrc(currentItem.cover_image || null);
     }
   }, [currentItem]);
 
@@ -111,19 +114,19 @@ export default function NewsCarousel({ newsItems }: NewsCarouselProps) {
                 fill
                 priority
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 1200px"
-                className="object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-90"
+                className="object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-[0.75]"
                 onError={() => {
-                  setImgSrc(defaultImage);
+                  setImgSrc(null);
                 }}
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
-                <span className="text-zinc-600 text-sm font-bold uppercase tracking-wider">Sem Imagem</span>
+              <div className="w-full h-full bg-gradient-to-br from-zinc-900 to-zinc-950 flex items-center justify-center">
+                {/* No image: let the professional charcoal gradient do the talking */}
               </div>
             )}
             {/* Multi-layered Vignette / Gradient Overlay to ensure maximum legibility */}
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-zinc-900/25 z-10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/50 to-zinc-900/10 z-10" />
             <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/60 via-transparent to-transparent z-10 hidden md:block" />
           </div>
 

@@ -27,6 +27,71 @@ export class PrefeituraPrudenteSource implements NewsSource {
   }
 
   /**
+   * Valida se uma URL de imagem é válida, respondendo com 200, content-type correto,
+   * e descarta ícones, spacer gifs, logotipos e placeholders conhecidos.
+   */
+  private async validateImageUrl(url: string): Promise<boolean> {
+    if (!url || !url.startsWith('http')) return false;
+
+    // 1. Filtrar palavras-chave pretas (blacklist de assets e placeholders comuns)
+    const lowercaseUrl = url.toLowerCase();
+    const blacklistedKeywords = [
+      'favicon', 'logo', 'spacer', 'nav_', 'icon', 'sprite', 'placeholder', 
+      'banner_institucional', 'facebook', 'twitter', 'instagram', 'avatar',
+      'marca_d_agua', 'redes_sociais', 'whatsapp_icon'
+    ];
+    if (blacklistedKeywords.some(keyword => lowercaseUrl.includes(keyword))) {
+      console.log(`[ImageValidation] Ignorando URL suspeita de ser asset institucional/marca: ${url}`);
+      return false;
+    }
+
+    // 2. Realizar chamada HEAD/GET com timeout baixo para verificar cabeçalhos de resposta
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s timeout
+
+      // GET parcial usando Range header para evitar consumo excessivo de banda e memória
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 MelhoraPrudenteGarimpoBot/1.0',
+          'Range': 'bytes=0-4096' // Apenas os primeiros 4KB para pegar cabeçalhos e verificar integridade básica
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      // Algumas CDNs/servidores podem não aceitar Range header, então aceitamos status 200 ou 206 (Partial Content)
+      if (res.status !== 200 && res.status !== 206) {
+        console.warn(`[ImageValidation] Imagem retornou status HTTP inválido: ${res.status} para ${url}`);
+        return false;
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.startsWith('image/')) {
+        console.warn(`[ImageValidation] URL não possui Content-Type de imagem: ${contentType} para ${url}`);
+        return false;
+      }
+
+      // Validar tamanho mínimo (se content-length fornecido for muito pequeno, ex: < 3KB, provavelmente é ícone)
+      const contentLengthStr = res.headers.get('content-length');
+      if (contentLengthStr) {
+        const contentLength = parseInt(contentLengthStr, 10);
+        if (contentLength > 0 && contentLength < 3072) {
+          console.warn(`[ImageValidation] Imagem muito pequena (${contentLength} bytes), suspeita de ser ícone/spacer: ${url}`);
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error: any) {
+      console.warn(`[ImageValidation] Erro ao validar imagem de capa em ${url}:`, error.message || error);
+      return false;
+    }
+  }
+
+  /**
    * Busca e extrai os itens da listagem principal
    */
   public async fetchLatestItems(limit = 10): Promise<ScrapedNewsItem[]> {
@@ -128,7 +193,15 @@ export class PrefeituraPrudenteSource implements NewsSource {
 
       if (imgMatch) {
         const matchedSrc = imgMatch[1];
-        imageUrl = matchedSrc.startsWith('http') ? matchedSrc : this.baseUrl + matchedSrc;
+        const rawUrl = matchedSrc.startsWith('http') ? matchedSrc : this.baseUrl + matchedSrc;
+        
+        // Validar imagem antes de preencher imageUrl
+        const isValid = await this.validateImageUrl(rawUrl);
+        if (isValid) {
+          imageUrl = rawUrl;
+        } else {
+          console.log(`[Garimpo] Imagem ignorada por ser inválida ou asset institucional: ${rawUrl}`);
+        }
       }
 
       // 2. Extrair Conteúdo

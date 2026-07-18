@@ -124,6 +124,7 @@ export default function GarimpoDashboard() {
   const [editCategory, setEditCategory] = useState('Cidade');
   const [editCoverImage, setEditCoverImage] = useState('');
   const [publishStatus, setPublishStatus] = useState<'published' | 'draft'>('published');
+  const [loadingFullContent, setLoadingFullContent] = useState(false);
 
   // Load candidates list
   const loadCandidates = async () => {
@@ -330,53 +331,46 @@ export default function GarimpoDashboard() {
     setEditingCandidate(cand);
     setEditTitle((cand.ai_title || cand.original_title).toUpperCase());
     setEditExcerpt(cand.ai_summary || cand.original_excerpt || '');
-    setEditContent(cand.original_excerpt || ''); // Use excerpt or fetching detail text
+    setEditContent(cand.original_excerpt || 'Carregando conteúdo completo da matéria...');
     setEditCategory(cand.ai_category || 'Cidade');
     setEditCoverImage(cand.original_image_url || '');
     setPublishStatus('published');
 
-    // Se expandido, podemos carregar os detalhes completos do conteúdo se houver
-    // Para conveniência do editor, pré-carregar conteúdo original do candidato se disponível
-    if (cand.original_excerpt) {
-      setEditContent(cand.original_excerpt);
-    }
+    // Carregar automaticamente o conteúdo completo em background via API Proxy sem CORS
+    loadFullContentForEdit(cand);
   };
 
-  // Safe lazy load detail contents for revision
+  // Safe lazy load detail contents for revision using secure server-side API proxy
   const loadFullContentForEdit = async (cand: NewsCandidate) => {
     setActionId(cand.id);
+    setLoadingFullContent(true);
     try {
-      const res = await fetch(cand.original_url);
-      const html = await res.text();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const res = await fetch(`/api/admin/garimpo/fetch-content?url=${encodeURIComponent(cand.original_url)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error(`HTTP Erro: ${res.status}`);
       
-      const contentRegex = /<div class="[^"]*post-content"[^>]*>([\s\S]*?)<\/div>/i;
-      const contentMatch = contentRegex.exec(html);
-      if (contentMatch) {
-        let cleanedText = contentMatch[1]
-          .replace(/<\/p>/gi, '\n')
-          .replace(/<p[^>]*>/gi, '')
-          .replace(/<br\s*\/?>/gi, '\n')
-          .replace(/<[^>]+>/g, '')
-          .trim();
-
-        cleanedText = cleanedText
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&quot;/g, '"')
-          .replace(/&#39;/g, "'")
-          .replace(/\r\n/g, '\n')
-          .replace(/\n\s*\n+/g, '\n\n');
-
-        setEditContent(cleanedText);
+      const data = await res.json();
+      if (data.success && data.content) {
+        setEditContent(data.content);
+        // Se a imagem original não estiver salva ou for inválida, mas o scraper extrair uma válida
+        if (!editCoverImage && data.imageUrl) {
+          setEditCoverImage(data.imageUrl);
+        }
       } else {
         setEditContent(cand.original_excerpt || '');
       }
     } catch (err) {
-      console.warn('Não foi possível obter detalhes do conteúdo original:', err);
+      console.warn('Não foi possível obter detalhes do conteúdo original via proxy:', err);
+      setEditContent(cand.original_excerpt || '');
     } finally {
       setActionId(null);
+      setLoadingFullContent(false);
     }
   };
 
@@ -897,16 +891,23 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-zinc-700 uppercase tracking-wider">
+                <label className="block text-xs font-bold text-zinc-700 uppercase tracking-wider flex items-center gap-2">
                   Conteúdo da Notícia
+                  {loadingFullContent && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-bold uppercase tracking-wider animate-pulse">
+                      <RefreshCw size={10} className="animate-spin" />
+                      Buscando original...
+                    </span>
+                  )}
                 </label>
                 <button
                   type="button"
+                  disabled={loadingFullContent}
                   onClick={() => loadFullContentForEdit(editingCandidate)}
-                  className="text-xs font-bold text-red-600 hover:text-red-800 transition-colors flex items-center gap-1"
+                  className="text-xs font-bold text-red-600 hover:text-red-800 disabled:text-zinc-400 transition-colors flex items-center gap-1"
                 >
-                  <RefreshCw size={12} className={cn(actionId === editingCandidate.id && "animate-spin")} />
-                  Recarregar conteúdo completo da página original
+                  <RefreshCw size={12} className={cn(loadingFullContent && "animate-spin")} />
+                  Recarregar conteúdo completo
                 </button>
               </div>
               <textarea
@@ -915,7 +916,10 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
                 placeholder="Insira o texto principal da matéria aqui"
-                className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:ring-1 focus:ring-red-500 focus:outline-none font-sans leading-relaxed"
+                className={cn(
+                  "w-full px-4 py-3 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:ring-1 focus:ring-red-500 focus:outline-none font-sans leading-relaxed transition-all",
+                  loadingFullContent && "opacity-60 bg-zinc-50"
+                )}
               />
             </div>
 
@@ -1126,9 +1130,9 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                         </div>
                       </div>
                       
-                      {cand.original_image_url && (
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block">Imagem Oficial</span>
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block">Imagem de Capa</span>
+                        {cand.original_image_url ? (
                           <div className="relative rounded-2xl overflow-hidden border border-zinc-200 bg-white aspect-video lg:aspect-square w-full shrink-0">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
@@ -1137,8 +1141,12 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                               className="object-cover w-full h-full"
                             />
                           </div>
-                        </div>
-                      )}
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-100 aspect-video lg:aspect-square w-full shrink-0 flex flex-col items-center justify-center p-4 text-center">
+                            <span className="text-zinc-400 text-xs font-semibold leading-normal">Esta matéria não possui imagem de capa na fonte original.</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
