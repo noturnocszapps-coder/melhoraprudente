@@ -516,7 +516,7 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                 console.warn(`[GarimpoService] Erro ao inserir com novos campos. Tentando fallback tradicional...`, insertError);
                 
                 // Fallback tradicional caso o usuário ainda não tenha rodado o script de migração SQL
-                const fallbackObj = {
+                const fallbackObj: any = {
                   source_name: source.name,
                   source_url: source.url,
                   external_id: detailedItem.externalId,
@@ -533,6 +533,10 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                   ai_regional_impact_score: aiAnalysis.ai_regional_impact_score ?? 70,
                   ai_viral_potential_score: aiAnalysis.ai_viral_potential_score ?? 60
                 };
+
+                if (possibleDuplicateOf) {
+                  fallbackObj.possible_duplicate_of = possibleDuplicateOf;
+                }
 
                 const { data: fallbackInserted, error: fallbackError } = await supabaseClient
                   .from('news_candidates')
