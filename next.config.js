@@ -93,7 +93,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.supabase.co https:; frame-src 'self' https:; frame-ancestors 'self' https://*.google.com https://*.googleusercontent.com https://*.aistudio.google https://*.vertexai.google https://*.run.app;",
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googlesyndication.com https://*.google.com https://pagead2.googlesyndication.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob: https://*.google.com https://*.googlesyndication.com; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.supabase.co https: https://*.google.com https://*.googlesyndication.com; frame-src 'self' https: https://*.google.com https://*.googlesyndication.com; frame-ancestors 'self' https://*.google.com https://*.googleusercontent.com https://*.aistudio.google https://*.vertexai.google https://*.run.app;",
           },
           {
             key: 'Cross-Origin-Opener-Policy',

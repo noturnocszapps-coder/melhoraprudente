@@ -9,12 +9,15 @@ export async function GET() {
       .single();
 
     if (error) {
-      return new NextResponse('google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0', {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      return new NextResponse('google.com, pub-4237790251786919, DIRECT, f08c47fec0942fa0', {
+        headers: { 
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'public, max-age=86400, s-maxage=86400'
+        },
       });
     }
 
-    let adsTxt = 'google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0';
+    let adsTxt = 'google.com, pub-4237790251786919, DIRECT, f08c47fec0942fa0';
     if (data && data.adsense_code) {
       if (data.adsense_code.startsWith('{')) {
         try {
@@ -31,6 +34,12 @@ export async function GET() {
       }
     }
 
+    // Replace dummy placeholder if present to prevent rendering fake ads.txt info
+    adsTxt = adsTxt.replace(/pub-0000000000000000/g, 'pub-4237790251786919');
+
+    // Ensure whitespace is trimmed
+    adsTxt = adsTxt.trim();
+
     return new NextResponse(adsTxt, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -38,8 +47,11 @@ export async function GET() {
       },
     });
   } catch (err) {
-    return new NextResponse('google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0', {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    return new NextResponse('google.com, pub-4237790251786919, DIRECT, f08c47fec0942fa0', {
+      headers: { 
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400, s-maxage=86400'
+      },
     });
   }
 }
