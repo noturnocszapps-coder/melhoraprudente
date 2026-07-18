@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, getAuthedSupabaseClient } from '@/lib/supabase';
 import { garimpoService } from '@/services/news-sources/garimpo-service';
 
 /**
@@ -13,7 +13,8 @@ async function validateAuth(req: NextRequest) {
   }
 
   const token = authHeader.substring(7);
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  const client = getAuthedSupabaseClient(token);
+  const { data: { user }, error: authError } = await client.auth.getUser();
   
   if (authError || !user) {
     console.warn("[validateAuth] Erro ao validar token no Supabase Auth:", authError);
@@ -24,45 +25,16 @@ async function validateAuth(req: NextRequest) {
   const userIdMasked = `${user.id.substring(0, 8)}...`;
   console.log(`[validateAuth] Usuário autenticado com sucesso. ID: ${userIdMasked}, Email: ${userEmail}`);
 
-  let profile: { role: string; status: string } | null = null;
-  const isKnownAdmin = userEmail === 'contato.fh3@gmail.com' || userEmail.endsWith('@melhoraprudente.com.br');
+  // Consulta padrão do perfil no banco com o cliente autenticado sob o RLS do usuário
+  const { data: profile, error: profileError } = await client
+    .from("profiles")
+    .select("role, status")
+    .eq("id", user.id)
+    .single();
 
-  if (isKnownAdmin) {
-    console.log(`[validateAuth] Usuário ${userEmail} identificado como Administrador Conhecido.`);
-    profile = { role: 'admin', status: 'active' };
-
-    // Tentativa auto-cicatrizante (self-healing) de criar ou atualizar o perfil no banco de dados,
-    // de modo que futuras consultas diretas e RLS também passem a funcionar perfeitamente.
-    try {
-      const { error: upsertError } = await supabase.from("profiles").upsert({
-        id: user.id,
-        email: user.email,
-        full_name: user.user_metadata?.full_name || 'Administrador Melhora Prudente',
-        role: 'admin',
-        status: 'active'
-      }, { onConflict: 'id' });
-
-      if (upsertError) {
-        console.warn(`[validateAuth] Falha silenciosa ao upsertar perfil no banco (comum se houver RLS ativo):`, upsertError.message);
-      } else {
-        console.log(`[validateAuth] Perfil real de administrador persistido com sucesso no banco de dados para ${userEmail}.`);
-      }
-    } catch (err: any) {
-      console.warn(`[validateAuth] Exceção silenciosa ao tentar persistir perfil de administrador:`, err.message || err);
-    }
-  } else {
-    // Consulta padrão do perfil no banco
-    const { data: dbProfile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role, status")
-      .eq("id", user.id)
-      .single();
-
-    if (profileError || !dbProfile) {
-      console.warn(`[validateAuth] Perfil não encontrado no banco de dados para ID: ${userIdMasked}.`);
-      return { errorResponse: NextResponse.json({ success: false, error: "Acesso não autorizado. Perfil de usuário não encontrado." }, { status: 403 }) };
-    }
-    profile = dbProfile;
+  if (profileError || !profile) {
+    console.warn(`[validateAuth] Perfil não encontrado no banco de dados para ID: ${userIdMasked}.`);
+    return { errorResponse: NextResponse.json({ success: false, error: "Acesso não autorizado. Perfil de usuário não encontrado." }, { status: 403 }) };
   }
 
   console.log(`[validateAuth] Status do perfil: role=${profile.role}, status=${profile.status}`);
@@ -77,7 +49,7 @@ async function validateAuth(req: NextRequest) {
     return { errorResponse: NextResponse.json({ success: false, error: "Acesso não autorizado" }, { status: 403 }) };
   }
 
-  return { user, profile };
+  return { user, profile, client };
 }
 
 /**
@@ -85,11 +57,11 @@ async function validateAuth(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   try {
-    const { errorResponse } = await validateAuth(req);
+    const { errorResponse, client } = await validateAuth(req);
     if (errorResponse) return errorResponse;
 
-    // Verificar se a tabela existe antes
-    const tableExists = await garimpoService.checkTableExists();
+    // Verificar se a tabela existe antes usando o cliente autenticado
+    const tableExists = await garimpoService.checkTableExists(client);
     if (!tableExists) {
       return NextResponse.json({
         error: "MISSING_TABLE",
@@ -100,7 +72,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') || undefined;
 
-    const candidates = await garimpoService.listCandidates(status);
+    const candidates = await garimpoService.listCandidates(status, client);
     return NextResponse.json({ candidates });
   } catch (error: any) {
     console.error('[API Garimpo GET] Erro:', error);
@@ -113,13 +85,13 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const { errorResponse } = await validateAuth(req);
+    const { errorResponse, client } = await validateAuth(req);
     if (errorResponse) return errorResponse;
 
     const { limit } = await req.json().catch(() => ({ limit: 10 }));
     
-    console.log(`[API Garimpo POST] Iniciando varredura com limite de ${limit} itens...`);
-    const stats = await garimpoService.buscarNovasNoticias(limit);
+    console.log(`[API Garimpo POST] Iniciando varredura com limite de ${limit} itens usando cliente autenticado...`);
+    const stats = await garimpoService.buscarNovasNoticias(limit, client);
 
     if (stats.errors.includes('MISSING_TABLE_ERROR')) {
       return NextResponse.json({

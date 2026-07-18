@@ -281,10 +281,10 @@ A resposta deve ser exclusivamente o JSON formatado. Não adicione textos adicio
   /**
    * Rejeita um candidato a notícia
    */
-  public async rejectCandidate(id: string) {
+  public async rejectCandidate(id: string, supabaseClient = supabase) {
     if (!isSupabaseConfigured) return false;
     try {
-      const { error } = await supabase
+      const { error } = await supabaseClient
         .from('news_candidates')
         .update({ status: 'rejected', updated_at: new Date().toISOString() })
         .eq('id', id);
@@ -310,14 +310,14 @@ A resposta deve ser exclusivamente o JSON formatado. Não adicione textos adicio
     city_slug?: string;
     city_name?: string;
     status: 'published' | 'draft';
-  }) {
+  }, supabaseClient = supabase) {
     if (!isSupabaseConfigured) {
       throw new Error('Supabase não configurado');
     }
 
     try {
       // 1. Buscar dados originais do candidato
-      const { data: candidate, error: fetchError } = await supabase
+      const { data: candidate, error: fetchError } = await supabaseClient
         .from('news_candidates')
         .select('*')
         .eq('id', id)
@@ -348,7 +348,7 @@ A resposta deve ser exclusivamente o JSON formatado. Não adicione textos adicio
       }
 
       // 4. Copiar para a tabela oficial 'news'
-      const { data: newsData, error: newsError } = await supabase
+      const { data: newsData, error: newsError } = await supabaseClient
         .from('news')
         .insert({
           title: finalData.title.toUpperCase(), // Garantir título em maiúsculo
@@ -379,7 +379,7 @@ A resposta deve ser exclusivamente o JSON formatado. Não adicione textos adicio
 
       // 5. Atualizar o status do candidato para 'published' (ou 'approved' se inserido como rascunho)
       const finalStatus = finalData.status === 'published' ? 'published' : 'approved';
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabaseClient
         .from('news_candidates')
         .update({
           status: finalStatus,
