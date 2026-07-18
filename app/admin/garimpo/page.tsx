@@ -62,6 +62,38 @@ interface NewsCandidate {
   published_news_id?: string | null;
 }
 
+const checkTitleSimilarityValue = (title1: string, title2: string): number => {
+  if (!title1 || !title2) return 0;
+  const clean = (t: string) => t.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 3 && !['para', 'pelo', 'pela', 'com', 'mais', 'sobre', 'como', 'onde', 'quando', 'tudo', 'presidente', 'prudente'].includes(w));
+  
+  const w1 = clean(title1);
+  const w2 = clean(title2);
+  if (w1.length === 0 || w2.length === 0) return 0;
+
+  const intersect = w1.filter(w => w2.includes(w));
+  return intersect.length / Math.max(w1.length, w2.length);
+};
+
+const mapAiCategoryToUi = (cat: string | null | undefined): string => {
+  if (!cat) return 'Cidade';
+  const norm = cat.toUpperCase();
+  if (norm === 'POLÍCIA' || norm === 'POLICIA' || norm === 'SEGURANÇA' || norm === 'SEGURANCA') return 'Segurança';
+  if (norm === 'POLÍTICA' || norm === 'POLITICA') return 'Política';
+  if (norm === 'ESPORTES') return 'Esportes';
+  if (norm === 'ECONOMIA') return 'Economia';
+  if (norm === 'SAÚDE' || norm === 'SAUDE') return 'Saúde';
+  if (norm === 'EDUCAÇÃO' || norm === 'EDUCACAO') return 'Educação';
+  if (norm === 'CULTURA') return 'Cultura';
+  if (norm === 'CIDADE') return 'Cidade';
+  if (norm === 'GERAL') return 'Geral';
+  return cat;
+};
+
 export default function GarimpoDashboard() {
   const [candidates, setCandidates] = useState<NewsCandidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +117,9 @@ export default function GarimpoDashboard() {
     newCandidates: number;
     saved: number;
     skipped: number;
+    duplicates: number;
+    old: number;
+    ignored: number;
     errorsCount: number;
     errorsList: string[];
   } | null>(null);
@@ -252,11 +287,14 @@ export default function GarimpoDashboard() {
         const stats = data.stats;
         setScanResult(stats);
         setScanDetails({
-          sourceName: 'Prefeitura de Presidente Prudente',
+          sourceName: 'Prefeitura e G1 - Multi-fontes',
           scraped: stats.scraped,
           newCandidates: stats.newCandidates,
           saved: stats.saved,
           skipped: stats.skipped,
+          duplicates: stats.duplicates || 0,
+          old: stats.old || 0,
+          ignored: stats.ignored || 0,
           errorsCount: stats.errors?.length || 0,
           errorsList: stats.errors || []
         });
@@ -347,7 +385,7 @@ export default function GarimpoDashboard() {
     setEditTitle((cand.ai_title || cand.original_title).toUpperCase());
     setEditExcerpt(cand.ai_summary || cand.original_excerpt || '');
     setEditContent(cand.original_excerpt || 'Carregando conteúdo completo da matéria...');
-    setEditCategory(cand.ai_category || 'Cidade');
+    setEditCategory(mapAiCategoryToUi(cand.ai_category));
     setEditCoverImage(cand.original_image_url || '');
     setPublishStatus('published');
 
@@ -742,22 +780,34 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800/50">
-              <span className="text-zinc-500 text-[10px] font-black uppercase tracking-wider block">Notícias no Portal</span>
-              <span className="text-xl font-mono font-bold text-white mt-1 block">{scanDetails.scraped}</span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+            <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800/50 flex flex-col justify-between">
+              <span className="text-zinc-500 text-[9px] font-black uppercase tracking-wider block leading-tight">Encontradas</span>
+              <span className="text-lg font-mono font-bold text-white mt-1 block">{scanDetails.scraped}</span>
             </div>
-            <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800/50">
-              <span className="text-zinc-500 text-[10px] font-black uppercase tracking-wider block">Identificadas como Novas</span>
-              <span className="text-xl font-mono font-bold text-amber-400 mt-1 block">{scanDetails.newCandidates}</span>
+            <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800/50 flex flex-col justify-between">
+              <span className="text-zinc-500 text-[9px] font-black uppercase tracking-wider block leading-tight">Identificadas</span>
+              <span className="text-lg font-mono font-bold text-amber-400 mt-1 block">{scanDetails.newCandidates}</span>
             </div>
-            <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800/50">
-              <span className="text-zinc-500 text-[10px] font-black uppercase tracking-wider block">Salvas com Sucesso</span>
-              <span className="text-xl font-mono font-bold text-emerald-400 mt-1 block">{scanDetails.saved}</span>
+            <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800/50 flex flex-col justify-between">
+              <span className="text-zinc-500 text-[9px] font-black uppercase tracking-wider block leading-tight">Salvas</span>
+              <span className="text-lg font-mono font-bold text-emerald-400 mt-1 block">{scanDetails.saved}</span>
             </div>
-            <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800/50">
-              <span className="text-zinc-500 text-[10px] font-black uppercase tracking-wider block">Erros de Processamento</span>
-              <span className={`text-xl font-mono font-bold mt-1 block ${scanDetails.errorsCount > 0 ? 'text-red-400' : 'text-zinc-400'}`}>
+            <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800/50 flex flex-col justify-between">
+              <span className="text-zinc-500 text-[9px] font-black uppercase tracking-wider block leading-tight">Duplicadas</span>
+              <span className="text-lg font-mono font-bold text-zinc-400 mt-1 block">{scanDetails.duplicates}</span>
+            </div>
+            <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800/50 flex flex-col justify-between">
+              <span className="text-zinc-500 text-[9px] font-black uppercase tracking-wider block leading-tight">Antigas</span>
+              <span className="text-lg font-mono font-bold text-blue-400 mt-1 block">{scanDetails.old}</span>
+            </div>
+            <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800/50 flex flex-col justify-between">
+              <span className="text-zinc-500 text-[9px] font-black uppercase tracking-wider block leading-tight">Ignoradas (IA)</span>
+              <span className="text-lg font-mono font-bold text-zinc-500 mt-1 block">{scanDetails.ignored}</span>
+            </div>
+            <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800/50 flex flex-col justify-between">
+              <span className="text-zinc-500 text-[9px] font-black uppercase tracking-wider block leading-tight">Erros</span>
+              <span className={`text-lg font-mono font-bold mt-1 block ${scanDetails.errorsCount > 0 ? 'text-red-400' : 'text-zinc-400'}`}>
                 {scanDetails.errorsCount}
               </span>
             </div>
@@ -907,11 +957,13 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                 >
                   <option value="Cidade">Cidade</option>
                   <option value="Política">Política</option>
-                  <option value="Segurança">Segurança</option>
+                  <option value="Segurança">Segurança/Polícia</option>
                   <option value="Esportes">Esportes</option>
                   <option value="Cultura">Cultura</option>
                   <option value="Geral">Geral</option>
                   <option value="Economia">Economia</option>
+                  <option value="Saúde">Saúde</option>
+                  <option value="Educação">Educação</option>
                   <option value="Tecnologia">Tecnologia</option>
                   <option value="Mundo">Mundo</option>
                 </select>
@@ -1110,12 +1162,41 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                     </p>
 
                     {/* Deduplication warning if possible duplicate is flagged */}
-                    {cand.possible_duplicate_of && (
-                      <div className="mt-2 bg-amber-50/70 border border-amber-200 text-amber-900 px-3 py-2 rounded-2xl text-[11px] flex items-center gap-1.5 font-medium">
-                        <AlertTriangle size={14} className="text-amber-600 shrink-0" />
-                        <span><strong>Alerta Editorial:</strong> Cobertura de pauta duplicada detectada entre fontes (Prefeitura e G1).</span>
-                      </div>
-                    )}
+                    {cand.possible_duplicate_of && (() => {
+                      const relatedCand = candidates.find(c => c.id === cand.possible_duplicate_of);
+                      if (relatedCand) {
+                        const similarityValue = checkTitleSimilarityValue(cand.original_title || cand.ai_title || '', relatedCand.original_title || relatedCand.ai_title || '');
+                        const similarityPercent = Math.round(similarityValue * 100);
+                        
+                        return (
+                          <div className="mt-3 bg-amber-50/80 border border-amber-200 text-amber-950 px-4 py-3 rounded-2xl text-[11px] space-y-1.5 shadow-sm">
+                            <div className="flex items-center gap-1.5 font-bold text-amber-900 text-[12px]">
+                              <AlertTriangle size={15} className="text-amber-600 shrink-0" />
+                              <span>Possível pauta duplicada semântica detectada</span>
+                            </div>
+                            <div className="text-zinc-700 pl-5 space-y-1">
+                              <p><strong>Matéria relacionada:</strong> <span className="uppercase">{relatedCand.ai_title || relatedCand.original_title}</span></p>
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-zinc-500 font-semibold">
+                                <span>Fonte: <span className="text-zinc-700">{relatedCand.source_name}</span></span>
+                                <span>Publicação: <span className="text-zinc-700">{formatDateString(relatedCand.original_published_at)}</span></span>
+                                <span>Similaridade: <span className="text-amber-700 font-black">{similarityPercent}%</span></span>
+                                <span>Status: <span className="text-zinc-700">{relatedCand.status === 'pending' ? 'Pendente' : relatedCand.status === 'published' ? 'Publicado' : relatedCand.status === 'approved' ? 'Aprovado' : 'Rejeitado'}</span></span>
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-zinc-500 font-medium italic pl-5 pt-0.5 border-t border-amber-200/50">
+                              * O editor possui autonomia total para decidir se aproveita, rejeita ou aguarda atualizações.
+                            </p>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div className="mt-2 bg-amber-50/70 border border-amber-200 text-amber-900 px-3 py-2 rounded-2xl text-[11px] flex items-center gap-1.5 font-medium">
+                          <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                          <span><strong>Possível pauta duplicada:</strong> Cobertura de pauta similar identificada no Garimpo (ID: {cand.possible_duplicate_of.substring(0, 8)}...).</span>
+                        </div>
+                      );
+                    })()}
 
                     {/* Image rights advisory */}
                     {cand.original_image_url && (
