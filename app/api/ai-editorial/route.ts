@@ -233,3 +233,51 @@ Scores (retorne valores inteiros de 0 a 100):
     );
   }
 }
+
+export async function GET(req: NextRequest) {
+  try {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { success: false, error: "Não autorizado." },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.substring(7);
+    const client = getAuthedSupabaseClient(token);
+    const { data: { user }, error: authError } = await client.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { success: false, error: "Sessão inválida." },
+        { status: 401 }
+      );
+    }
+
+    // Verify profile role
+    const { data: profile } = await client
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || (profile.role !== "admin" && profile.role !== "editor")) {
+      return NextResponse.json(
+        { success: false, error: "Acesso proibido." },
+        { status: 403 }
+      );
+    }
+
+    const isApiKeySet = typeof process.env.GEMINI_API_KEY === 'string' && process.env.GEMINI_API_KEY.length > 0;
+    return NextResponse.json({
+      success: true,
+      api_configured: isApiKeySet
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}

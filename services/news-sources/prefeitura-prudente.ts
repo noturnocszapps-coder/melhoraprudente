@@ -4,6 +4,7 @@ export class PrefeituraPrudenteSource implements NewsSource {
   public id = 'prefeitura-prudente';
   public name = 'Prefeitura de Presidente Prudente';
   public url = 'https://presidenteprudente.sp.gov.br/site/noticias.xhtml';
+  public sourceType: 'official' | 'journalistic' = 'official';
   private baseUrl = 'https://presidenteprudente.sp.gov.br';
 
   /**
@@ -150,7 +151,10 @@ export class PrefeituraPrudenteSource implements NewsSource {
           externalId,
           title,
           url: fullUrl,
-          publishedAt: publishedAtISO
+          publishedAt: publishedAtISO,
+          sourceId: this.id,
+          sourceName: this.name,
+          sourceType: this.sourceType
         });
 
         parsedCount++;

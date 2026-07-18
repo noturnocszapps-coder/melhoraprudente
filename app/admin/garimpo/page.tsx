@@ -46,6 +46,20 @@ interface NewsCandidate {
   ai_viral_potential_score: number | null;
   created_at: string;
   updated_at: string;
+
+  // Novos campos estruturados da Segunda Onda
+  source_id?: string | null;
+  source_type?: 'official' | 'journalistic' | null;
+  source_image_url?: string | null;
+  image_usage_status?: 'unknown' | 'allowed' | 'not_allowed' | 'own_image_required' | null;
+  editorial_status?: 'coletada' | 'analisada' | 'em_revisao' | 'aprovada' | 'publicada' | 'rejeitada' | null;
+  ai_analysis_status?: string | null;
+  ai_analyzed_at?: string | null;
+  ai_model?: string | null;
+  possible_duplicate_of?: string | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  published_news_id?: string | null;
 }
 
 export default function GarimpoDashboard() {
@@ -53,6 +67,7 @@ export default function GarimpoDashboard() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'approved_published' | 'rejected'>('pending');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'prefeitura-prudente' | 'g1-presidente-prudente'>('all');
   
   // Diagnostic states
   const [diagnostic, setDiagnostic] = useState<{
@@ -501,6 +516,12 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
 
     if (!matchesTab) return false;
 
+    // Source filtering
+    if (sourceFilter !== 'all') {
+      const actualSourceId = cand.source_id || (cand.source_name.toLowerCase().includes('prefeitura') ? 'prefeitura-prudente' : 'g1-presidente-prudente');
+      if (actualSourceId !== sourceFilter) return false;
+    }
+
     // Search query filtering
     if (!searchQuery) return true;
     const normSearch = searchQuery.toLowerCase();
@@ -798,16 +819,50 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
           </button>
         </div>
 
-        {/* Search bar */}
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
-          <input
-            type="text"
-            placeholder="Buscar na fila editorial..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-xl text-xs border border-zinc-200 focus:outline-none focus:ring-1 focus:ring-red-500"
-          />
+        {/* Source and Search Filters */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+          {/* Source Filter */}
+          <div className="flex bg-zinc-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
+            <button
+              onClick={() => setSourceFilter('all')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap",
+                sourceFilter === 'all' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
+              )}
+            >
+              Todas Fontes
+            </button>
+            <button
+              onClick={() => setSourceFilter('prefeitura-prudente')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap",
+                sourceFilter === 'prefeitura-prudente' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
+              )}
+            >
+              Prefeitura
+            </button>
+            <button
+              onClick={() => setSourceFilter('g1-presidente-prudente')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap",
+                sourceFilter === 'g1-presidente-prudente' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
+              )}
+            >
+              G1 Prudente
+            </button>
+          </div>
+
+          {/* Search bar */}
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+            <input
+              type="text"
+              placeholder="Buscar na fila..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-xl text-xs border border-zinc-200 focus:outline-none focus:ring-1 focus:ring-red-500"
+            />
+          </div>
         </div>
       </div>
 
@@ -1012,7 +1067,12 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                 <div className="p-5 md:p-6 flex flex-col md:flex-row items-start justify-between gap-4">
                   <div className="space-y-2 flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="bg-zinc-100 border border-zinc-200 text-zinc-600 px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1">
+                      <span className={cn(
+                        "px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border",
+                        (cand.source_id === 'g1-presidente-prudente' || cand.source_name.toLowerCase().includes('g1'))
+                          ? "bg-red-50 text-red-600 border-red-100"
+                          : "bg-blue-50 text-blue-600 border-blue-100"
+                      )}>
                         <Globe size={10} />
                         {cand.source_name}
                       </span>
@@ -1027,6 +1087,18 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                           {cand.ai_category}
                         </span>
                       )}
+
+                      {/* Status badge for Aprovados Tab */}
+                      {activeTab === 'approved_published' && (
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full text-[10px] font-bold",
+                          cand.status === 'published' 
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                            : "bg-amber-50 text-amber-700 border border-amber-200"
+                        )}>
+                          {cand.status === 'published' ? 'PUBLICADA NO FEED' : 'APROVADA (RASCUNHO)'}
+                        </span>
+                      )}
                     </div>
 
                     <h3 className="text-base font-black tracking-tight text-zinc-900 leading-snug uppercase">
@@ -1036,6 +1108,48 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                     <p className="text-zinc-500 text-xs leading-relaxed line-clamp-2 md:line-clamp-3">
                       {cand.ai_summary || cand.original_excerpt}
                     </p>
+
+                    {/* Deduplication warning if possible duplicate is flagged */}
+                    {cand.possible_duplicate_of && (
+                      <div className="mt-2 bg-amber-50/70 border border-amber-200 text-amber-900 px-3 py-2 rounded-2xl text-[11px] flex items-center gap-1.5 font-medium">
+                        <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                        <span><strong>Alerta Editorial:</strong> Cobertura de pauta duplicada detectada entre fontes (Prefeitura e G1).</span>
+                      </div>
+                    )}
+
+                    {/* Image rights advisory */}
+                    {cand.original_image_url && (
+                      <div className="mt-2 flex items-center">
+                        {(cand.source_id === 'g1-presidente-prudente' || cand.source_name.toLowerCase().includes('g1')) ? (
+                          <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-lg text-[9px] font-bold">
+                            <AlertTriangle size={10} />
+                            Imagem G1 Protegida (Requer Imagem Própria ou Atribuição Estrita)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-lg text-[9px] font-bold">
+                            <Check size={10} />
+                            Imagem Prefeitura (Domínio Público - Uso Livre)
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Historical Editorial tracking details */}
+                    {activeTab === 'approved_published' && (
+                      <div className="text-[10px] text-zinc-500 font-mono space-y-0.5 mt-2 pt-2 border-t border-zinc-100">
+                        {cand.approved_at && (
+                          <div>
+                            <span className="font-bold text-zinc-700">Aprovado em:</span> {new Date(cand.approved_at).toLocaleString('pt-BR')}
+                          </div>
+                        )}
+                        {cand.published_news_id && (
+                          <div className="mt-1">
+                            <span className="font-bold text-zinc-700">ID de Publicação:</span>{' '}
+                            <span className="bg-zinc-100 px-1 py-0.5 rounded text-zinc-600 font-mono text-[9px]">{cand.published_news_id}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* AI Scores metrics panel */}

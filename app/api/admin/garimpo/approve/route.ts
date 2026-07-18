@@ -51,7 +51,7 @@ async function validateAuth(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { errorResponse, client } = await validateAuth(req);
+    const { errorResponse, user, client } = await validateAuth(req);
     if (errorResponse) return errorResponse;
 
     const { id, title, excerpt, content, category, cover_image, city_slug, city_name, status } = await req.json();
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
       city_slug,
       city_name,
       status: status || 'published'
-    }, client);
+    }, client, user?.id);
 
     return NextResponse.json({ success: true, news: newsData });
   } catch (error: any) {

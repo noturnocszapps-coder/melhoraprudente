@@ -8,12 +8,22 @@ interface AdminCacheType {
   // Dashboard
   stats: {
     totalPosts: number;
+    publishedPosts: number;
+    publishedToday: number;
+    publishedLast7Days: number;
+    draftPosts: number;
     totalUsers: number;
     totalCategories: number;
     likesCount: number;
     commentsCount: number;
     viewsCount: number;
     sharesCount: number;
+    // Garimpo candidates
+    garimpoTotal: number;
+    garimpoPending: number;
+    garimpoApproved: number;
+    garimpoRejected: number;
+    garimpoLastSync: string | null;
   };
   trending: any[];
   growth: {
@@ -91,19 +101,28 @@ export const AdminCacheProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // 1. Dashboard State
   const [stats, setStats] = useState(() => getStoredData('mp_cache_dashboard_stats', {
     totalPosts: 0,
+    publishedPosts: 0,
+    publishedToday: 0,
+    publishedLast7Days: 0,
+    draftPosts: 0,
     totalUsers: 0,
     totalCategories: 0,
     likesCount: 0,
     commentsCount: 0,
     viewsCount: 0,
-    sharesCount: 0
+    sharesCount: 0,
+    garimpoTotal: 0,
+    garimpoPending: 0,
+    garimpoApproved: 0,
+    garimpoRejected: 0,
+    garimpoLastSync: null as string | null
   }));
   const [trending, setTrending] = useState<any[]>(() => getStoredData('mp_cache_dashboard_trending', []));
   const [growth, setGrowth] = useState(() => getStoredData('mp_cache_dashboard_growth', {
-    dailyGrowth: '+0%',
-    weeklyGrowth: '+0%',
-    avgReadingTime: '2m 00s',
-    estimatedBounceRate: '40.0%'
+    dailyGrowth: 'Não configurado',
+    weeklyGrowth: 'Não configurado',
+    avgReadingTime: 'Não configurado',
+    estimatedBounceRate: 'Não configurado'
   }));
   const [dashboardLoading, setDashboardLoading] = useState(() => {
     const hasCache = getStoredData('mp_cache_dashboard_stats', null);
@@ -153,9 +172,13 @@ export const AdminCacheProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const refreshDashboard = async () => {
     try {
-      const safeCount = async (table: string) => {
+      const safeCountWithFilter = async (table: string, filterBuilder?: (query: any) => any) => {
         try {
-          const { count, error } = await supabase.from(table).select('id', { count: 'exact', head: true });
+          let query = supabase.from(table).select('id', { count: 'exact', head: true });
+          if (filterBuilder) {
+            query = filterBuilder(query);
+          }
+          const { count, error } = await query;
           if (error) throw error;
           return count || 0;
         } catch (e) {
@@ -164,49 +187,75 @@ export const AdminCacheProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       };
 
-      const [postsCount, usersCount, categoriesCount, engagementMetrics, trendingNews] = await Promise.all([
-        safeCount('news'),
-        safeCount('profiles'),
-        safeCount('categories'),
+      const [
+        totalPosts,
+        publishedPosts,
+        draftPosts,
+        publishedToday,
+        publishedLast7Days,
+        totalUsers,
+        totalCategories,
+        garimpoTotal,
+        garimpoPending,
+        garimpoApproved,
+        garimpoRejected,
+        engagementMetrics,
+        trendingNews
+      ] = await Promise.all([
+        safeCountWithFilter('news'),
+        safeCountWithFilter('news', q => q.eq('status', 'published')),
+        safeCountWithFilter('news', q => q.eq('status', 'draft')),
+        safeCountWithFilter('news', q => q.eq('status', 'published').gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())),
+        safeCountWithFilter('news', q => q.eq('status', 'published').gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())),
+        safeCountWithFilter('profiles'),
+        safeCountWithFilter('categories', q => q.eq('is_active', true)),
+        safeCountWithFilter('news_candidates'),
+        safeCountWithFilter('news_candidates', q => q.eq('status', 'pending')),
+        safeCountWithFilter('news_candidates', q => q.eq('status', 'approved')),
+        safeCountWithFilter('news_candidates', q => q.eq('status', 'rejected')),
         engagementService.getEngagementMetrics(),
         engagementService.getTrendingNews(15)
       ]);
 
-      // Calculate dynamic reading time based on actual word counts
-      let totalWords = 0;
-      let articlesWithContent = 0;
-      trendingNews.forEach(item => {
-        if (item.content) {
-          totalWords += item.content.split(/\s+/).length;
-          articlesWithContent++;
+      let garimpoLastSync: string | null = null;
+      try {
+        const { data: latestCandidate, error } = await supabase
+          .from('news_candidates')
+          .select('collected_at')
+          .order('collected_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!error && latestCandidate?.collected_at) {
+          garimpoLastSync = latestCandidate.collected_at;
         }
-      });
-
-      const avgWords = articlesWithContent > 0 ? Math.round(totalWords / articlesWithContent) : 250;
-      const totalSeconds = Math.round((avgWords / 200) * 60);
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = totalSeconds % 60;
-      const avgReadingStr = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
-
-      const bounceBase = 45;
-      const engagementFactor = Math.min(20, (engagementMetrics.likesCount + engagementMetrics.commentsCount * 2 + engagementMetrics.sharesCount * 1.5) / Math.max(1, engagementMetrics.viewsCount) * 100);
-      const estimatedBounce = Math.max(28.5, bounceBase - engagementFactor).toFixed(1) + '%';
+      } catch (e) {
+        console.warn('Could not fetch last sync for garimpo:', e);
+      }
 
       const freshStats = {
-        totalPosts: postsCount,
-        totalUsers: usersCount,
-        totalCategories: categoriesCount,
+        totalPosts,
+        publishedPosts,
+        publishedToday,
+        publishedLast7Days,
+        draftPosts,
+        totalUsers,
+        totalCategories,
         likesCount: engagementMetrics.likesCount,
         commentsCount: engagementMetrics.commentsCount,
         viewsCount: engagementMetrics.viewsCount,
-        sharesCount: engagementMetrics.sharesCount
+        sharesCount: engagementMetrics.sharesCount,
+        garimpoTotal,
+        garimpoPending,
+        garimpoApproved,
+        garimpoRejected,
+        garimpoLastSync
       };
 
       const freshGrowth = {
-        dailyGrowth: `+${postsCount > 0 ? Math.min(20, Math.ceil(postsCount * 0.12)) : 0}%`,
-        weeklyGrowth: `+${postsCount > 0 ? Math.min(45, Math.ceil(postsCount * 0.28)) : 0}%`,
-        avgReadingTime: avgReadingStr,
-        estimatedBounceRate: estimatedBounce
+        dailyGrowth: 'Não configurado',
+        weeklyGrowth: 'Não configurado',
+        avgReadingTime: 'Não configurado',
+        estimatedBounceRate: 'Não configurado'
       };
 
       setStats(freshStats);

@@ -12,328 +12,586 @@ import {
   Share2, 
   TrendingUp, 
   Clock, 
-  Percent, 
   ShieldAlert, 
   Database, 
   CheckCircle, 
-  AlertTriangle 
+  AlertTriangle,
+  Activity,
+  FileText,
+  Sparkles,
+  RefreshCw,
+  ArrowUpRight,
+  Lock,
+  Server,
+  FileQuestion,
+  XCircle
 } from 'lucide-react';
 import { useAdminCache } from './context/AdminCacheContext';
 
-export default function AdminDashboard() {
-  const { stats, trending, growth, dashboardLoading, refreshDashboard } = useAdminCache();
+interface HealthState {
+  status: 'Carregando...' | 'Operacional' | 'Atenção' | 'Indisponível' | 'Não configurado';
+  details: string;
+}
 
-  // Observability metrics - marked as non-configured/waiting integration per instructions
-  const [observability, setObservability] = useState({
-    apiSuccessRate: 'Aguardando integração',
-    dbLatency: 'Aguardando integração',
-    sentryStatus: 'Não configurado',
-    errorsLogged: 'Indisponível',
-    privacyCheck: 'Aguardando integração',
-    logsSize: 'Não configurado'
+export default function AdminDashboard() {
+  const { stats, trending, dashboardLoading, refreshDashboard } = useAdminCache();
+
+  // Real system health states
+  const [health, setHealth] = useState<Record<string, HealthState>>({
+    auth: { status: 'Carregando...', details: 'Verificando Supabase Auth...' },
+    database: { status: 'Carregando...', details: 'Testando conexão com tabelas...' },
+    storage: { status: 'Carregando...', details: 'Verificando buckets de mídia...' },
+    garimpo: { status: 'Carregando...', details: 'Testando tabela do Garimpo...' },
+    ia: { status: 'Carregando...', details: 'Verificando serviço do Gemini API...' }
   });
+  const [checkingHealth, setCheckingHealth] = useState(false);
+
+  // Run real system checks
+  const checkSystemHealth = async () => {
+    setCheckingHealth(true);
+
+    // 1. Supabase Auth
+    let authRes: HealthState = { status: 'Não configurado', details: 'Configurações do Supabase pendentes.' };
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        authRes = { status: 'Indisponível', details: `Erro de conexão: ${error.message}` };
+      } else {
+        authRes = { status: 'Operacional', details: 'Autenticação e sessão ativas.' };
+      }
+    } catch (e: any) {
+      authRes = { status: 'Indisponível', details: e.message || 'Erro inesperado.' };
+    }
+    setHealth(prev => ({ ...prev, auth: authRes }));
+
+    // 2. Database
+    let dbRes: HealthState = { status: 'Não configurado', details: 'Sem conexão de banco.' };
+    try {
+      const { error } = await supabase.from('news').select('id').limit(1);
+      if (error) {
+        dbRes = { status: 'Indisponível', details: `Erro de leitura: ${error.message}` };
+      } else {
+        dbRes = { status: 'Operacional', details: 'Acesso e leitura de tabelas ativo.' };
+      }
+    } catch (e: any) {
+      dbRes = { status: 'Indisponível', details: e.message || 'Erro de rede.' };
+    }
+    setHealth(prev => ({ ...prev, database: dbRes }));
+
+    // 3. Supabase Storage
+    let storageRes: HealthState = { status: 'Não configurado', details: 'Nenhum bucket configurado.' };
+    try {
+      const { data, error } = await supabase.storage.listBuckets();
+      if (error) {
+        storageRes = { status: 'Atenção', details: 'Policies de acesso ativas ou restritas.' };
+      } else if (data && data.length > 0) {
+        storageRes = { status: 'Operacional', details: `${data.length} bucket(s) operacionais.` };
+      } else {
+        storageRes = { status: 'Operacional', details: 'Conexão ativa, sem buckets criados.' };
+      }
+    } catch (e: any) {
+      storageRes = { status: 'Não configurado', details: 'Armazenamento inativo.' };
+    }
+    setHealth(prev => ({ ...prev, storage: storageRes }));
+
+    // 4. Garimpo candidates table
+    let garimpoRes: HealthState = { status: 'Não configurado', details: 'Tabela de candidatos ausente.' };
+    try {
+      const { error } = await supabase.from('news_candidates').select('id').limit(1);
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST205') {
+          garimpoRes = { status: 'Não configurado', details: 'Tabela news_candidates ausente.' };
+        } else {
+          garimpoRes = { status: 'Indisponível', details: `Erro: ${error.message}` };
+        }
+      } else {
+        garimpoRes = { status: 'Operacional', details: 'Fila do Garimpo queryable.' };
+      }
+    } catch (e: any) {
+      garimpoRes = { status: 'Indisponível', details: e.message || 'Erro desconhecido.' };
+    }
+    setHealth(prev => ({ ...prev, garimpo: garimpoRes }));
+
+    // 5. IA Service (Gemini API)
+    let iaRes: HealthState = { status: 'Não configurado', details: 'Chave Gemini indisponível.' };
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        const res = await fetch('/api/ai-editorial', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+        if (res.ok) {
+          const body = await res.json();
+          if (body.api_configured) {
+            iaRes = { status: 'Operacional', details: 'Gemini 2.5/3.5 ativo no servidor.' };
+          } else {
+            iaRes = { status: 'Não configurado', details: 'GEMINI_API_KEY vazia no servidor.' };
+          }
+        } else {
+          iaRes = { status: 'Atenção', details: `Código de resposta editorial: ${res.status}` };
+        }
+      } else {
+        iaRes = { status: 'Indisponível', details: 'Sessão requerida para verificar.' };
+      }
+    } catch (e: any) {
+      iaRes = { status: 'Indisponível', details: 'Sem resposta da API de IA.' };
+    }
+    setHealth(prev => ({ ...prev, ia: iaRes }));
+    setCheckingHealth(false);
+  };
 
   useEffect(() => {
     refreshDashboard();
+    checkSystemHealth();
   }, []);
 
   const hasNoData = stats.totalPosts === 0 && stats.totalUsers === 0 && trending.length === 0;
 
-  if (dashboardLoading && hasNoData) return (
-    <div className="py-20 flex flex-col items-center gap-4">
-      <Loader2 className="animate-spin text-red-600" size={32} />
-      <p className="text-zinc-400 font-bold uppercase tracking-widest text-[10px]">Carregando estatísticas de observabilidade...</p>
-    </div>
-  );
+  // Real-time integration check based on client process environments
+  const isGaConfigured = typeof process.env.NEXT_PUBLIC_GA_ID === 'string' && process.env.NEXT_PUBLIC_GA_ID.length > 0;
+  const isClarityConfigured = typeof process.env.NEXT_PUBLIC_CLARITY_ID === 'string' && process.env.NEXT_PUBLIC_CLARITY_ID.length > 0;
+  const isSentryConfigured = false; // Never configured or present in deps
 
-  const mainStats = [
-    { label: 'Total de Notícias', value: stats.totalPosts.toString(), color: 'bg-blue-50 text-blue-600 border border-blue-100/50' },
-    { label: 'Usuários Registrados', value: stats.totalUsers.toString(), color: 'bg-emerald-50 text-emerald-600 border border-emerald-100/50' },
-    { label: 'Categorias Ativas', value: stats.totalCategories.toString(), color: 'bg-purple-50 text-purple-600 border border-purple-100/50' },
-  ];
-
-  const engagementStats = [
-    { label: 'Visualizações', value: stats.viewsCount.toLocaleString('pt-BR'), icon: Eye, color: 'bg-zinc-50 border border-zinc-200/60 text-zinc-800' },
-    { label: 'Votos / Curtidas', value: stats.likesCount.toLocaleString('pt-BR'), icon: Heart, color: 'bg-red-50 border border-red-100 text-red-600' },
-    { label: 'Comentários', value: stats.commentsCount.toLocaleString('pt-BR'), icon: MessageSquare, color: 'bg-amber-50 border border-amber-100 text-amber-600' },
-    { label: 'Compartilhamentos', value: stats.sharesCount.toLocaleString('pt-BR'), icon: Share2, color: 'bg-indigo-50 border border-indigo-100 text-indigo-600' },
-  ];
-
-  // Sorting dynamic metrics
+  // Sorting dynamic metrics from cached trending data
   const newsByViews = [...trending].sort((a, b) => b.viewsCount - a.viewsCount).slice(0, 5);
   const newsByShares = [...trending].sort((a, b) => b.sharesCount - a.sharesCount).slice(0, 5);
   const newsByComments = [...trending].sort((a, b) => b.commentsCount - a.commentsCount).slice(0, 5);
 
+  const formatLastSync = (dateStr: string | null) => {
+    if (!dateStr) return 'Nunca sincronizado';
+    try {
+      return new Date(dateStr).toLocaleString('pt-BR');
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Operacional':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/25">
+            <CheckCircle size={10} className="stroke-[3]" />
+            Operacional
+          </span>
+        );
+      case 'Atenção':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/25">
+            <AlertTriangle size={10} className="stroke-[3]" />
+            Atenção
+          </span>
+        );
+      case 'Indisponível':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/25">
+            <XCircle size={10} className="stroke-[3]" />
+            Indisponível
+          </span>
+        );
+      case 'Não configurado':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-zinc-400/10 text-zinc-500 border border-zinc-500/15">
+            <FileQuestion size={10} className="stroke-[3]" />
+            Não configurado
+          </span>
+        );
+    }
+  };
+
   return (
-    <div className="space-y-10">
-      {/* Title */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-100 pb-5">
+    <div className="space-y-8">
+      {/* Header and Sync State */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
         <div>
-          <h1 className="text-xl font-black uppercase tracking-tight text-zinc-900">Painel de Observabilidade & Analytics</h1>
-          <p className="text-xs text-zinc-500 font-medium">Melhora Prudente - Auditoria e Métricas em Tempo Real para Presidente Prudente e Região.</p>
+          <h2 className="text-lg font-black uppercase tracking-tight text-zinc-900">Auditoria Editorial & Painel Real</h2>
+          <p className="text-xs text-zinc-500 font-semibold">Métricas e diagnósticos auditados diretamente do banco de dados.</p>
         </div>
-        <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-emerald-100">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          Sincronizado com GA4 + Clarity + LGPD
-        </div>
+        <button 
+          onClick={() => { refreshDashboard(); checkSystemHealth(); }}
+          disabled={dashboardLoading || checkingHealth}
+          className="self-start sm:self-center flex items-center gap-2 px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-zinc-200 transition-all disabled:opacity-50"
+        >
+          <RefreshCw size={12} className={cn((dashboardLoading || checkingHealth) && "animate-spin")} />
+          Atualizar Dados
+        </button>
       </div>
 
-      {/* Main stats counters */}
-      <div className="space-y-4">
-        <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Estatísticas Gerais</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {mainStats.map((stat, i) => (
-            <div key={i} className={cn("p-6 rounded-3xl space-y-2 shadow-sm transition-all hover:scale-[1.01]", stat.color)}>
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{stat.label}</p>
-              <p className="text-3xl font-black tracking-tighter">{stat.value}</p>
-            </div>
-          ))}
+      {dashboardLoading && hasNoData ? (
+        <div className="py-12 flex flex-col items-center justify-center gap-3">
+          <Loader2 className="animate-spin text-red-600" size={28} />
+          <p className="text-zinc-400 font-bold uppercase tracking-widest text-[9px]">Carregando painel de auditoria real...</p>
         </div>
-      </div>
-
-      {/* Advanced dynamic metrics bento grid */}
-      <div className="space-y-4">
-        <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Indicadores de Desempenho Editorial</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-3xl border border-zinc-200/60 shadow-sm flex flex-col justify-between space-y-4">
-            <div className="flex justify-between items-start">
-              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Crescimento Diário</span>
-              <span className="p-2 bg-blue-50 text-blue-600 rounded-xl"><TrendingUp size={16} /></span>
-            </div>
-            <div>
-              <p className="text-2xl font-black tracking-tighter text-zinc-900">{growth.dailyGrowth}</p>
-              <p className="text-[9px] text-zinc-400 font-bold uppercase mt-1">Comparado às últimas 24h</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-3xl border border-zinc-200/60 shadow-sm flex flex-col justify-between space-y-4">
-            <div className="flex justify-between items-start">
-              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Crescimento Semanal</span>
-              <span className="p-2 bg-purple-50 text-purple-600 rounded-xl"><TrendingUp size={16} /></span>
-            </div>
-            <div>
-              <p className="text-2xl font-black tracking-tighter text-zinc-900">{growth.weeklyGrowth}</p>
-              <p className="text-[9px] text-zinc-400 font-bold uppercase mt-1">Comparado aos últimos 7 dias</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-3xl border border-zinc-200/60 shadow-sm flex flex-col justify-between space-y-4">
-            <div className="flex justify-between items-start">
-              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Tempo Médio de Leitura</span>
-              <span className="p-2 bg-amber-50 text-amber-600 rounded-xl"><Clock size={16} /></span>
-            </div>
-            <div>
-              <p className="text-2xl font-black tracking-tighter text-zinc-900">{growth.avgReadingTime}</p>
-              <p className="text-[9px] text-zinc-400 font-bold uppercase mt-1">Estimado por volume de texto</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-3xl border border-zinc-200/60 shadow-sm flex flex-col justify-between space-y-4">
-            <div className="flex justify-between items-start">
-              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Taxa de Rejeição Est.</span>
-              <span className="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><Percent size={16} /></span>
-            </div>
-            <div>
-              <p className="text-2xl font-black tracking-tighter text-zinc-900">{growth.estimatedBounceRate}</p>
-              <p className="text-[9px] text-zinc-400 font-bold uppercase mt-1">Engajamento x Rejeição de cliques</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Engagement Counters */}
-      <div className="space-y-4">
-        <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Radar de Engajamento Real</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {engagementStats.map((stat, i) => {
-            const Icon = stat.icon;
-            return (
-              <div key={i} className={cn("p-6 rounded-3xl flex items-center justify-between shadow-sm transition-all hover:scale-[1.01]", stat.color)}>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-widest opacity-75">{stat.label}</p>
-                  <p className="text-3xl font-black tracking-tighter">{stat.value}</p>
+      ) : (
+        <>
+          {/* Blocks Grid: CONTEÚDO, GARIMPO, ENGAJAMENTO */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* BLOCK 1: CONTEÚDO */}
+            <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-sm p-5 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-zinc-100">
+                <span className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><FileText size={14} /></span>
+                <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900">Bloco de Conteúdo</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Publicadas</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.publishedPosts}</p>
                 </div>
-                <div className="p-3 rounded-2xl bg-white/65 shadow-inner">
-                  <Icon size={22} className="opacity-90" />
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Publicadas Hoje</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.publishedToday}</p>
+                </div>
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Últimos 7 dias</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.publishedLast7Days}</p>
+                </div>
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Rascunhos</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.draftPosts}</p>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
+            </div>
 
-      {/* Ranked News List & Data Performance Metrics */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Most Read News */}
-        <div className="bg-white p-6 rounded-3xl border border-zinc-200/60 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-zinc-50">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-950">Notícias Mais Lidas (Visualizações)</h3>
-            <span className="text-[10px] bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full font-black">TOP 5</span>
-          </div>
-          <div className="space-y-3">
-            {newsByViews.length === 0 ? (
-              <p className="text-xs text-zinc-400 font-bold uppercase text-center py-6">Nenhum dado de leitura ainda.</p>
-            ) : (
-              newsByViews.map((news, idx) => (
-                <div key={news.id} className="flex items-center gap-3 justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-zinc-800 truncate leading-tight hover:text-red-600">
-                      <Link href={`/noticia/${news.slug}`} target="_blank">{news.title}</Link>
-                    </p>
-                    <p className="text-[9px] text-zinc-400 font-bold uppercase mt-0.5">{news.category}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0 bg-zinc-50 px-2.5 py-1 rounded-full border border-zinc-100">
-                    <Eye size={12} className="text-zinc-500" />
-                    <span className="text-xs font-black text-zinc-800">{news.viewsCount}</span>
-                  </div>
+            {/* BLOCK 2: GARIMPO */}
+            <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-sm p-5 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-zinc-100">
+                <span className="p-1.5 bg-amber-50 text-amber-600 rounded-lg"><Sparkles size={14} /></span>
+                <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900">Bloco do Garimpo</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Coletadas/Total</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.garimpoTotal}</p>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Most Shared News */}
-        <div className="bg-white p-6 rounded-3xl border border-zinc-200/60 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-zinc-50">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-950">Mais Compartilhadas</h3>
-            <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-black">ENGAGE</span>
-          </div>
-          <div className="space-y-3">
-            {newsByShares.length === 0 ? (
-              <p className="text-xs text-zinc-400 font-bold uppercase text-center py-6">Nenhum compartilhamento ainda.</p>
-            ) : (
-              newsByShares.map((news, idx) => (
-                <div key={news.id} className="flex items-center gap-3 justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-zinc-800 truncate leading-tight hover:text-red-600">
-                      <Link href={`/noticia/${news.slug}`} target="_blank">{news.title}</Link>
-                    </p>
-                    <p className="text-[9px] text-zinc-400 font-bold uppercase mt-0.5">{news.category}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
-                    <Share2 size={12} className="text-indigo-500" />
-                    <span className="text-xs font-black text-indigo-700">{news.sharesCount}</span>
-                  </div>
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Pendentes</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.garimpoPending}</p>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Most Commented News */}
-        <div className="bg-white p-6 rounded-3xl border border-zinc-200/60 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-zinc-50">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-950">Mais Comentadas</h3>
-            <span className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-black">DEBATE</span>
-          </div>
-          <div className="space-y-3">
-            {newsByComments.length === 0 ? (
-              <p className="text-xs text-zinc-400 font-bold uppercase text-center py-6">Nenhum comentário enviado ainda.</p>
-            ) : (
-              newsByComments.map((news, idx) => (
-                <div key={news.id} className="flex items-center gap-3 justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-zinc-800 truncate leading-tight hover:text-red-600">
-                      <Link href={`/noticia/${news.slug}`} target="_blank">{news.title}</Link>
-                    </p>
-                    <p className="text-[9px] text-zinc-400 font-bold uppercase mt-0.5">{news.category}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-100">
-                    <MessageSquare size={12} className="text-amber-500" />
-                    <span className="text-xs font-black text-amber-700">{news.commentsCount}</span>
-                  </div>
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Aprovadas</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.garimpoApproved}</p>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Advanced Observability Status Desk */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-zinc-950 p-8 rounded-3xl text-zinc-100 space-y-6 border border-zinc-800/80 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
-            <div className="flex items-center gap-3">
-              <span className="p-2.5 bg-zinc-800 rounded-2xl"><ShieldAlert size={20} className="text-red-500" /></span>
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-zinc-100">Mesa de Observabilidade Sênior</h3>
-                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-wider mt-0.5">Diagnóstico Técnico Ativo</p>
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Rejeitadas</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.garimpoRejected}</p>
+                </div>
               </div>
             </div>
-            <span className="text-[10px] bg-green-500/20 text-green-400 px-3 py-1 rounded-full border border-green-500/30 font-black uppercase tracking-wider">
-              ONLINE
-            </span>
+
+            {/* BLOCK 3: ENGAJAMENTO */}
+            <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-sm p-5 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-zinc-100">
+                <span className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg"><Activity size={14} /></span>
+                <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900">Bloco de Engajamento</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Visualizações</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.viewsCount.toLocaleString('pt-BR')}</p>
+                </div>
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Curtidas</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.likesCount.toLocaleString('pt-BR')}</p>
+                </div>
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Comentários</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.commentsCount.toLocaleString('pt-BR')}</p>
+                </div>
+                <div className="bg-zinc-50/50 p-3 rounded-xl border border-zinc-100">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Compartilhados</p>
+                  <p className="text-lg font-black text-zinc-900 mt-1">{stats.sharesCount.toLocaleString('pt-BR')}</p>
+                </div>
+              </div>
+            </div>
+
           </div>
 
-          <div className="grid grid-cols-2 gap-6 text-xs font-bold">
-            <div className="space-y-1">
-              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Taxa de Sucesso API</span>
-              <p className="text-lg font-black tracking-tight text-zinc-400 flex items-center gap-1.5">
-                <Clock size={14} className="text-zinc-500" />
-                {observability.apiSuccessRate}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Latência do Banco</span>
-              <p className="text-lg font-black tracking-tight text-zinc-400 flex items-center gap-1.5">
-                <Database size={14} className="text-zinc-500" />
-                {observability.dbLatency}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Status Sentry / Monitor</span>
-              <p className="text-sm font-black tracking-tight text-zinc-400 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-zinc-500" />
-                {observability.sentryStatus}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Erros Registrados (Crit)</span>
-              <p className="text-lg font-black tracking-tight text-zinc-400 flex items-center gap-1.5">
-                <AlertTriangle size={14} className="text-zinc-500" />
-                {observability.errorsLogged}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Conformidade LGPD</span>
-              <p className="text-sm font-black tracking-tight text-zinc-400">
-                {observability.privacyCheck}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Tamanho Logs Limpos</span>
-              <p className="text-sm font-black tracking-tight text-zinc-500">
-                {observability.logsSize}
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800/80 space-y-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Diretriz de Segurança de Logs (LGPD)</p>
-            <p className="text-[10px] text-zinc-400 leading-relaxed font-semibold">
-              O sistema de logs sanitiza automaticamente qualquer dado sensível. Tokens JWT, Bearer tokens, senhas e endereços de e-mail são mascarados na borda com regex de alto desempenho antes da persistência ou descarregamento.
-            </p>
-          </div>
-        </div>
-
-        {/* Quick actions box retained completely */}
-        <div className="bg-zinc-50 p-8 rounded-3xl space-y-4 border border-zinc-100 shadow-sm flex flex-col justify-between">
+          {/* BLOCK 4: RANKINGS EDITORIAIS */}
           <div className="space-y-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900">Ações de Gerenciamento</h3>
-            <p className="text-xs text-zinc-500 font-semibold leading-relaxed">
-              Use estes atalhos rápidos para expandir o conteúdo jornalístico regional ou gerenciar os setores organizados de Presidente Prudente e região.
-            </p>
+            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Rankings de Conteúdo Auditado</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* RANKING: MAIS LIDAS */}
+              <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 flex items-center gap-1.5">
+                    <Eye size={14} className="text-zinc-500" />
+                    Mais Lidas
+                  </h4>
+                  <span className="text-[8px] font-black bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded uppercase">views</span>
+                </div>
+                <div className="space-y-3 min-h-[180px] flex flex-col justify-start">
+                  {newsByViews.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
+                      <FileQuestion size={24} className="text-zinc-300 mb-2" />
+                      <p className="text-[10px] text-zinc-400 font-bold uppercase">Nenhuma leitura registrada</p>
+                    </div>
+                  ) : (
+                    newsByViews.map((news) => (
+                      <div key={news.id} className="flex items-start justify-between gap-3 text-xs border-b border-zinc-50 pb-2 last:border-0 last:pb-0">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-zinc-800 truncate leading-tight">{news.title}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[8px] font-bold uppercase text-zinc-400">{news.category}</span>
+                            <span className="text-[8px] text-zinc-300">•</span>
+                            <span className="text-[8px] font-bold text-zinc-500 flex items-center gap-1">
+                              <Eye size={8} /> {news.viewsCount} views
+                            </span>
+                          </div>
+                        </div>
+                        <Link 
+                          href={`/noticia/${news.slug}`}
+                          target="_blank"
+                          className="flex-shrink-0 text-[10px] font-bold text-red-600 hover:text-red-700 flex items-center gap-0.5"
+                        >
+                          Ver
+                          <ArrowUpRight size={12} />
+                        </Link>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* RANKING: MAIS COMPARTILHADAS */}
+              <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 flex items-center gap-1.5">
+                    <Share2 size={14} className="text-zinc-500" />
+                    Mais Compartilhadas
+                  </h4>
+                  <span className="text-[8px] font-black bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded uppercase">shares</span>
+                </div>
+                <div className="space-y-3 min-h-[180px] flex flex-col justify-start">
+                  {newsByShares.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
+                      <FileQuestion size={24} className="text-zinc-300 mb-2" />
+                      <p className="text-[10px] text-zinc-400 font-bold uppercase">Nenhum compartilhamento ainda</p>
+                    </div>
+                  ) : (
+                    newsByShares.map((news) => (
+                      <div key={news.id} className="flex items-start justify-between gap-3 text-xs border-b border-zinc-50 pb-2 last:border-0 last:pb-0">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-zinc-800 truncate leading-tight">{news.title}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[8px] font-bold uppercase text-zinc-400">{news.category}</span>
+                            <span className="text-[8px] text-zinc-300">•</span>
+                            <span className="text-[8px] font-bold text-zinc-500 flex items-center gap-1">
+                              <Share2 size={8} /> {news.sharesCount} shares
+                            </span>
+                          </div>
+                        </div>
+                        <Link 
+                          href={`/noticia/${news.slug}`}
+                          target="_blank"
+                          className="flex-shrink-0 text-[10px] font-bold text-red-600 hover:text-red-700 flex items-center gap-0.5"
+                        >
+                          Ver
+                          <ArrowUpRight size={12} />
+                        </Link>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* RANKING: MAIS COMENTADAS */}
+              <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 flex items-center gap-1.5">
+                    <MessageSquare size={14} className="text-zinc-500" />
+                    Mais Comentadas
+                  </h4>
+                  <span className="text-[8px] font-black bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded uppercase">comments</span>
+                </div>
+                <div className="space-y-3 min-h-[180px] flex flex-col justify-start">
+                  {newsByComments.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
+                      <FileQuestion size={24} className="text-zinc-300 mb-2" />
+                      <p className="text-[10px] text-zinc-400 font-bold uppercase">Nenhum comentário enviado</p>
+                    </div>
+                  ) : (
+                    newsByComments.map((news) => (
+                      <div key={news.id} className="flex items-start justify-between gap-3 text-xs border-b border-zinc-50 pb-2 last:border-0 last:pb-0">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-zinc-800 truncate leading-tight">{news.title}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[8px] font-bold uppercase text-zinc-400">{news.category}</span>
+                            <span className="text-[8px] text-zinc-300">•</span>
+                            <span className="text-[8px] font-bold text-zinc-500 flex items-center gap-1">
+                              <MessageSquare size={8} /> {news.commentsCount} comments
+                            </span>
+                          </div>
+                        </div>
+                        <Link 
+                          href={`/noticia/${news.slug}`}
+                          target="_blank"
+                          className="flex-shrink-0 text-[10px] font-bold text-red-600 hover:text-red-700 flex items-center gap-0.5"
+                        >
+                          Ver
+                          <ArrowUpRight size={12} />
+                        </Link>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 mt-6">
-            <Link href="/admin/noticias/nova" className="bg-white p-5 rounded-2xl border border-zinc-200 hover:border-red-300 transition-all text-center shadow-sm font-black text-xs uppercase tracking-wider text-zinc-800">
-              Nova Notícia
-            </Link>
-            <Link href="/admin/categorias" className="bg-white p-5 rounded-2xl border border-zinc-200 hover:border-red-300 transition-all text-center shadow-sm font-black text-xs uppercase tracking-wider text-zinc-800">
-              Gerenciar Categorias
-            </Link>
+
+          {/* BLOCK 5: SAÚDE DO SISTEMA & INTEGRAÇÕES */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            {/* SAÚDE DO SISTEMA */}
+            <div className="bg-zinc-950 p-6 md:p-8 rounded-3xl text-zinc-100 space-y-6 border border-zinc-800 shadow-xl">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 bg-zinc-900 rounded-xl border border-zinc-800"><Server size={16} className="text-red-500" /></span>
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-widest text-zinc-100">Saúde do Sistema</h3>
+                    <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider">Verificação de Conexões em Tempo Real</p>
+                  </div>
+                </div>
+                <button
+                  onClick={checkSystemHealth}
+                  disabled={checkingHealth}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[9px] font-black uppercase tracking-wider text-zinc-300 disabled:opacity-50 transition-all"
+                >
+                  <RefreshCw size={10} className={cn(checkingHealth && "animate-spin")} />
+                  Testar Novamente
+                </button>
+              </div>
+
+              {/* Status list */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-xs font-bold">
+                
+                <div className="flex flex-col gap-1 border-b border-zinc-900 pb-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">Supabase Auth</span>
+                    {getStatusBadge(health.auth.status)}
+                  </div>
+                  <span className="text-[10px] text-zinc-400 font-semibold truncate">{health.auth.details}</span>
+                </div>
+
+                <div className="flex flex-col gap-1 border-b border-zinc-900 pb-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">Banco de Dados</span>
+                    {getStatusBadge(health.database.status)}
+                  </div>
+                  <span className="text-[10px] text-zinc-400 font-semibold truncate">{health.database.details}</span>
+                </div>
+
+                <div className="flex flex-col gap-1 border-b border-zinc-900 pb-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">Supabase Storage</span>
+                    {getStatusBadge(health.storage.status)}
+                  </div>
+                  <span className="text-[10px] text-zinc-400 font-semibold truncate">{health.storage.details}</span>
+                </div>
+
+                <div className="flex flex-col gap-1 border-b border-zinc-900 pb-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">Garimpo de Notícias</span>
+                    {getStatusBadge(health.garimpo.status)}
+                  </div>
+                  <span className="text-[10px] text-zinc-400 font-semibold truncate">{health.garimpo.details}</span>
+                </div>
+
+                <div className="flex flex-col gap-1 border-b border-zinc-900 pb-2 sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">Serviço de IA (Gemini API)</span>
+                    {getStatusBadge(health.ia.status)}
+                  </div>
+                  <span className="text-[10px] text-zinc-400 font-semibold truncate">{health.ia.details}</span>
+                </div>
+
+                <div className="flex items-center justify-between sm:col-span-2 bg-zinc-900/40 p-2.5 rounded-xl border border-zinc-900 text-[10px] text-zinc-400 font-semibold">
+                  <span className="uppercase font-bold text-[9px] text-zinc-500">Última Sincronização do Garimpo:</span>
+                  <span className="font-mono">{formatLastSync(stats.garimpoLastSync)}</span>
+                </div>
+
+              </div>
+            </div>
+
+            {/* INTEGRAÇÕES & AÇÕES */}
+            <div className="flex flex-col justify-between gap-6">
+              
+              {/* Box de Integrações */}
+              <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-6 space-y-4 flex-1">
+                <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900 pb-2 border-b border-zinc-100">Status das Integrações de Terceiros</h3>
+                
+                <div className="space-y-3.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-zinc-800">Google Analytics 4 (GA4)</span>
+                      <span className="text-[10px] text-zinc-400">Rastreamento de pageviews e audiência</span>
+                    </div>
+                    {isGaConfigured ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">Configurado</span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-zinc-100 text-zinc-400 border border-zinc-200/65">Não configurado</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-zinc-800">Microsoft Clarity</span>
+                      <span className="text-[10px] text-zinc-400">Mapas de calor e gravações de sessão</span>
+                    </div>
+                    {isClarityConfigured ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">Configurado</span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-zinc-100 text-zinc-400 border border-zinc-200/65">Não configurado</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-zinc-800">Monitoramento de Erros (Sentry)</span>
+                      <span className="text-[10px] text-zinc-400">Captura de exceções em produção</span>
+                    </div>
+                    {isSentryConfigured ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">Configurado</span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-zinc-100 text-zinc-400 border border-zinc-200/65">Não configurado</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Ações de Gerenciamento */}
+              <div className="bg-zinc-50 rounded-2xl border border-zinc-200/75 p-6 space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900">Atalhos Administrativos</h3>
+                  <p className="text-[11px] text-zinc-500 font-semibold leading-relaxed">Operações diretas para redigir matérias ou organizar tags.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <Link 
+                    href="/admin/noticias/nova" 
+                    className="bg-white p-3.5 rounded-xl border border-zinc-200 hover:border-red-300 hover:text-red-600 text-zinc-700 transition-all text-center shadow-sm font-black text-[10px] uppercase tracking-wider"
+                  >
+                    Nova Notícia
+                  </Link>
+                  <Link 
+                    href="/admin/categorias" 
+                    className="bg-white p-3.5 rounded-xl border border-zinc-200 hover:border-red-300 hover:text-red-600 text-zinc-700 transition-all text-center shadow-sm font-black text-[10px] uppercase tracking-wider"
+                  >
+                    Gerenciar Categorias
+                  </Link>
+                </div>
+              </div>
+
+            </div>
+
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
