@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { Loader2, Save, ArrowLeft, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Save, ArrowLeft, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const CATEGORY_SUGGESTIONS = ['Cidade', 'Política', 'Segurança', 'Esportes', 'Cultura', 'Geral'];
@@ -20,27 +20,63 @@ export default function EditNewsPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMode, setUploadMode] = useState<'upload' | 'url'>('upload');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setUploadError(null);
+
+    // Validate size (max 5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setUploadError('A imagem deve ter no máximo 5 MB.');
+      return;
+    }
+
+    // Validate type (JPEG, PNG, WEBP)
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('A imagem deve ser do tipo JPEG, PNG ou WEBP.');
+      return;
+    }
+
     setUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
-      const filePath = `covers/${fileName}`;
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const uuid = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const timestamp = Date.now();
+      const fileName = `${timestamp}-${uuid}.${fileExt}`;
+      const filePath = `news-covers/${fileName}`;
 
-      const { data, error } = await supabase.storage
-        .from('news_covers')
-        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      // Defensive timeout of 30 seconds
+      const uploadWithTimeout = async () => {
+        return new Promise(async (resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            reject(new Error('Não foi possível concluir o upload da imagem. Tente novamente.'));
+          }, 30000);
 
-      if (error) {
-        if (error.message.includes('Bucket not found') || error.message.includes('does not exist')) {
-          throw new Error('O bucket de armazenamento "news_covers" não foi encontrado no seu Supabase. Por favor, crie o bucket "news_covers" com acesso público na aba de Storage do seu Supabase para ativar os uploads.');
-        }
-        throw error;
-      }
+          try {
+            const { data, error } = await supabase.storage
+              .from('news_covers')
+              .upload(filePath, file, { cacheControl: '3600', upsert: true });
+
+            clearTimeout(timeoutId);
+            if (error) {
+              reject(error);
+            } else {
+              resolve(data);
+            }
+          } catch (err) {
+            clearTimeout(timeoutId);
+            reject(err);
+          }
+        });
+      };
+
+      await uploadWithTimeout();
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
@@ -51,7 +87,13 @@ export default function EditNewsPage() {
       alert('Upload de imagem realizado com sucesso!');
     } catch (error: any) {
       console.error('Error uploading file to Supabase storage:', error);
-      alert('Erro no upload: ' + error.message);
+      let errMsg = error.message || 'Erro ao enviar imagem.';
+      if (errMsg.includes('Bucket not found') || errMsg.includes('does not exist') || errMsg.includes('bucket')) {
+        errMsg = 'O armazenamento de imagens não está configurado.';
+      } else if (errMsg.includes('violates row-level security') || errMsg.includes('Permission denied') || errMsg.includes('privilege') || error.status === 403) {
+        errMsg = 'Você não possui permissão para enviar arquivos (Erro de RLS no Storage).';
+      }
+      setUploadError(errMsg);
     } finally {
       setUploading(false);
     }
@@ -180,6 +222,22 @@ export default function EditNewsPage() {
             ai_seo_title: data.ai_seo_title || '',
             ai_seo_description: data.ai_seo_description || '',
           });
+
+          // Check if custom slug already existed
+          const loadedTitle = data.title || '';
+          const loadedSlug = data.slug || '';
+          const autoSlug = loadedTitle
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^\w\s-]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-+|-+$/g, '');
+          
+          if (loadedSlug && loadedSlug !== autoSlug) {
+            setSlugManuallyEdited(true);
+          }
         }
       } catch (error: any) {
         console.warn('Error fetching news item from Supabase:', error);
@@ -199,19 +257,22 @@ export default function EditNewsPage() {
     return text
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^\w ]+/g, '')
-      .replace(/ +/g, '-')
-      .replace(/-+/g, '-');
+      .replace(/[\u0300-\u036f]/g, '') // remove acentos
+      .replace(/[^\w\s-]/g, '') // remover caracteres especiais
+      .replace(/\s+/g, '-') // substituir espaços por hífen
+      .replace(/-+/g, '-') // remover hífens duplicados
+      .replace(/^-+|-+$/g, ''); // remover hífens no início e final
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const title = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      title,
-      slug: generateSlug(title)
-    }));
+    const title = e.target.value.toLocaleUpperCase('pt-BR');
+    setFormData(prev => {
+      const nextData = { ...prev, title };
+      if (!slugManuallyEdited) {
+        nextData.slug = generateSlug(title);
+      }
+      return nextData;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -324,7 +385,10 @@ export default function EditNewsPage() {
                 type="text"
                 required
                 value={formData.slug}
-                onChange={e => setFormData(prev => ({ ...prev, slug: e.target.value }))}
+                onChange={e => {
+                  setSlugManuallyEdited(true);
+                  setFormData(prev => ({ ...prev, slug: e.target.value }));
+                }}
                 className="w-full bg-zinc-50 border border-zinc-200 focus:border-red-500 rounded-xl py-2.5 px-4 text-xs font-mono focus:ring-2 focus:ring-red-100 outline-none transition-all text-zinc-800"
                 placeholder="link-da-noticia"
               />
@@ -591,6 +655,13 @@ export default function EditNewsPage() {
                 </div>
               )}
 
+              {uploadError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-semibold flex items-start gap-2">
+                  <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                  <span>{uploadError}</span>
+                </div>
+              )}
+
               {formData.cover_image && (
                 <div className="mt-3 aspect-[16/9] rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50 relative group">
                   <img src={formData.cover_image} alt="Pré-visualização" className="w-full h-full object-cover" />
@@ -617,7 +688,7 @@ export default function EditNewsPage() {
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || uploading}
               className="flex-[2] bg-zinc-900 hover:bg-zinc-800 text-white font-black uppercase tracking-widest py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-xs shadow-md shadow-zinc-100"
             >
               {saving ? <Loader2 className="animate-spin" size={16} /> : <><Save size={16} /> Salvar Alterações</>}

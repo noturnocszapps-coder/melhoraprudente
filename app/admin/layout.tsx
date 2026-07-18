@@ -17,7 +17,8 @@ import {
   Loader2,
   Menu,
   X,
-  ArrowLeft
+  ArrowLeft,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -39,6 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.prefetch('/admin/usuarios');
     router.prefetch('/admin/anuncios');
     router.prefetch('/admin/configuracoes');
+    router.prefetch('/admin/garimpo');
     router.prefetch('/');
   }, [router]);
 
@@ -94,6 +96,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
     { icon: FileText, label: 'Notícias', path: '/admin/noticias' },
+    { icon: Sparkles, label: 'Garimpo por IA', path: '/admin/garimpo' },
     { icon: FolderTree, label: 'Categorias', path: '/admin/categorias' },
     { icon: MessageSquare, label: 'Comentários', path: '/admin/comentarios' },
     { icon: Users, label: 'Usuários', path: '/admin/usuarios', adminOnly: true },
