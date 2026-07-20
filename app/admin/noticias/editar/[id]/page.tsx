@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Loader2, Save, ArrowLeft, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const CATEGORY_SUGGESTIONS = ['Cidade', 'Política', 'Segurança', 'Esportes', 'Cultura', 'Geral'];
+const CATEGORY_SUGGESTIONS = ['Cidade', 'Região'];
 
 export default function EditNewsPage() {
   const { user } = useAuth();

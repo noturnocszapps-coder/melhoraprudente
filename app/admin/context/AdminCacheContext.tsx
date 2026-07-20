@@ -131,7 +131,7 @@ export const AdminCacheProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // 2. Noticias State
   const [newsList, setNewsList] = useState<any[]>(() => getStoredData('mp_cache_news_list', []));
-  const [newsCategories, setNewsCategories] = useState<string[]>(() => getStoredData('mp_cache_news_categories', ['all', 'Cidade', 'Política', 'Segurança', 'Esportes', 'Cultura', 'Geral']));
+  const [newsCategories, setNewsCategories] = useState<string[]>(() => getStoredData('mp_cache_news_categories', ['all', 'Cidade', 'Região']));
   const [newsLoading, setNewsLoading] = useState(() => {
     const hasCache = getStoredData('mp_cache_news_list', null);
     return !hasCache;

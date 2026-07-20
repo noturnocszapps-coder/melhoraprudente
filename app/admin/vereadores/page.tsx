@@ -111,6 +111,58 @@ export default function CouncilorsAdminPage() {
     }
   }, [user]);
 
+  const getSubcategory = (act_type: string, title: string = '', summary: string = ''): string => {
+    const combined = `${title.toUpperCase()} ${(summary || '').toUpperCase()}`;
+    const type = (act_type || '').toLowerCase();
+    
+    if (combined.includes('DENOMINA')) {
+      return 'denominação de espaço público';
+    }
+    
+    if (type.includes('mocao') || type.includes('moção')) {
+      if (combined.includes('PESAR') || combined.includes('FALECIMENTO') || combined.includes('ÓBITO') || combined.includes('OBITO')) {
+        return 'pesar';
+      }
+      return 'congratulação';
+    }
+    
+    if (combined.includes('CIDADÃO') || combined.includes('CIDADÃ') || combined.includes('HONRA') || combined.includes('MEDALHA') || combined.includes('HOMENAGEM') || combined.includes('DIPLOMA') || combined.includes('CONGRATULA') || combined.includes('BENEMÉRITO')) {
+      return 'homenagem';
+    }
+
+    if (type.includes('indicacao') || type.includes('indicação')) {
+      if (combined.includes('ILUMINA') || combined.includes('LÂMPADA') || combined.includes('POSTE')) {
+        return 'iluminação';
+      }
+      if (combined.includes('TRÂNSITO') || combined.includes('SINALIZA') || combined.includes('PLACA') || combined.includes('FAIXA') || combined.includes('LOMBADA') || combined.includes('RUA') || combined.includes('AVENIDA')) {
+        return 'trânsito';
+      }
+      if (combined.includes('BURACO') || combined.includes('ASFALT') || combined.includes('RECAPE') || combined.includes('TAPA')) {
+        return 'infraestrutura';
+      }
+      return 'zeladoria';
+    }
+
+    if (type.includes('requerimento')) {
+      if (combined.includes('CONVOCA')) {
+        return 'convocação';
+      }
+      if (combined.includes('INFORMA') || combined.includes('SOLICITA') || combined.includes('REQUER')) {
+        return 'pedido de informação';
+      }
+      return 'fiscalização';
+    }
+
+    if (type.includes('projeto_lei') || type.includes('projeto de lei')) {
+      if (combined.includes('ORGANIZA') || combined.includes('CÂMARA') || combined.includes('ESTRUTURA')) {
+        return 'organização da Câmara';
+      }
+      return 'legislação municipal';
+    }
+
+    return 'Outros atos';
+  };
+
   const getCategoryBadgeColor = (category: string) => {
     switch (category) {
       case 'LEGISLAÇÃO SUBSTANTIVA':
@@ -278,13 +330,6 @@ export default function CouncilorsAdminPage() {
                         </div>
                         <h4 className="text-xs font-black text-zinc-900 leading-snug">{act.title}</h4>
                       </div>
-
-                      <div className="text-right">
-                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-wider block">Impacto Cidadão</span>
-                        <span className={`text-base font-black ${act.relevance_score >= 70 ? 'text-emerald-600' : act.relevance_score >= 40 ? 'text-amber-500' : 'text-zinc-500'}`}>
-                          {act.relevance_score || '50'}/100
-                        </span>
-                      </div>
                     </div>
 
                     {/* Authors mapping */}
@@ -304,39 +349,78 @@ export default function CouncilorsAdminPage() {
 
                     {selectedAct?.id === act.id && (
                       <div className="pt-4 border-t border-zinc-100 space-y-4 text-xs leading-relaxed transition-all">
-                        {/* Summary */}
-                        <div className="space-y-1 bg-zinc-50 p-3.5 rounded-xl border border-zinc-200/50">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 block flex items-center gap-1">
-                            <Sparkles size={10} className="text-red-500" />
-                            Resumo Estruturado (IA)
+                        
+                        {/* 1. DADO OFICIAL */}
+                        <div className="space-y-2 bg-zinc-50 p-4 rounded-xl border border-zinc-200/50">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">
+                            Dado Oficial (Fonte: Câmara Municipal)
                           </span>
-                          <p className="text-zinc-600 font-medium">{act.summary || 'Aguardando análise detalhada...'}</p>
-                        </div>
-
-                        {/* Practical Explanation */}
-                        <div className="space-y-1 bg-red-50/10 p-3.5 rounded-xl border border-red-500/10">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-red-600 block flex items-center gap-1">
-                            <UserCheck size={10} />
-                            O que isso significa para o Cidadão Prudentino?
-                          </span>
-                          <p className="text-zinc-700 font-medium">{act.explanation_citizen || 'Aguardando síntese editorial...'}</p>
-                        </div>
-
-                        {/* Extra Metadata */}
-                        <div className="flex items-center justify-between text-[10px] text-zinc-400 font-bold pt-1">
-                          <span className="uppercase">Nº Protocolo: {act.number || 'N/A'} • Status: {act.status || 'TRAMITAÇÃO'}</span>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px] text-zinc-600 font-semibold mb-2">
+                            <div>
+                              <span className="text-zinc-400 block text-[9px] font-bold uppercase tracking-wide">Tipo Oficial:</span>
+                              <span className="capitalize">{act.act_type?.replace('_', ' ') || 'Ato'}</span>
+                            </div>
+                            <div>
+                              <span className="text-zinc-400 block text-[9px] font-bold uppercase tracking-wide">Número e Ano:</span>
+                              <span>{act.number || 'N/A'}/{act.year || '2026'}</span>
+                            </div>
+                            <div>
+                              <span className="text-zinc-400 block text-[9px] font-bold uppercase tracking-wide">Situação Atual:</span>
+                              <span className="uppercase text-red-600">{act.status || 'TRAMITAÇÃO'}</span>
+                            </div>
+                          </div>
+                          <div className="border-t border-zinc-200/50 pt-2 mt-2">
+                            <span className="text-zinc-400 block text-[9px] font-bold uppercase tracking-wide mb-1">Ementa/Resumo Original:</span>
+                            <p className="text-zinc-700 font-medium italic">"{act.summary || 'Aguardando publicação do resumo original...'}"</p>
+                          </div>
+                          
                           {act.official_url && (
-                            <a 
-                              href={act.official_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="text-red-600 hover:text-red-700 hover:underline flex items-center gap-0.5"
-                            >
-                              Consultar na íntegra
-                              <ArrowUpRight size={12} />
-                            </a>
+                            <div className="pt-2 text-right">
+                              <a 
+                                href={act.official_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 font-bold uppercase text-[10px] tracking-wider hover:underline"
+                              >
+                                Consultar ato na íntegra
+                                <ArrowUpRight size={12} />
+                              </a>
+                            </div>
                           )}
                         </div>
+
+                        {/* 2. CLASSIFICAÇÃO EDITORIAL/METODOLÓGICA */}
+                        <div className="space-y-2 bg-zinc-50 p-4 rounded-xl border border-zinc-200/50">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block">
+                            Classificação Editorial & Metodológica (Melhora Prudente)
+                          </span>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] text-zinc-700 font-medium">
+                            <div className="space-y-1">
+                              <span className="text-zinc-400 block text-[9px] font-bold uppercase tracking-wide">Grupo Analítico:</span>
+                              <span className="inline-block px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-zinc-200 text-zinc-800 border border-zinc-300">
+                                {act.act_category}
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-zinc-400 block text-[9px] font-bold uppercase tracking-wide">Subcategoria Analítica:</span>
+                              <span className="inline-block px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-700 border border-red-200/50">
+                                {getSubcategory(act.act_type, act.title, act.summary)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 3. EXPLICAÇÃO EM LINGUAGEM SIMPLES */}
+                        <div className="space-y-2 bg-red-50/15 p-4 rounded-xl border border-red-500/10">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-red-600 block flex items-center gap-1">
+                            <UserCheck size={10} />
+                            Explicação em Linguagem Simples (Tradução Cidadã)
+                          </span>
+                          <p className="text-zinc-700 font-medium text-xs leading-relaxed">
+                            {act.explanation_citizen || 'Aguardando síntese editorial e tradução amigável pela equipe Melhora Prudente...'}
+                          </p>
+                        </div>
+
                       </div>
                     )}
 

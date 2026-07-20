@@ -6,6 +6,68 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || ""
 });
 
+export function decodeHTMLEntities(text: string): string {
+  if (!text) return '';
+  
+  const entities: { [key: string]: string } = {
+    '&ordm;': 'º',
+    '&Ordm;': 'º',
+    '&deg;': '°',
+    '&nbsp;': ' ',
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&apos;': "'",
+    '&ccedil;': 'ç',
+    '&Ccedil;': 'Ç',
+    '&atilde;': 'ã',
+    '&Atilde;': 'Ã',
+    '&otilde;': 'õ',
+    '&Otilde;': 'Õ',
+    '&aacute;': 'á',
+    '&Aacute;': 'Á',
+    '&eacute;': 'é',
+    '&Eacute;': 'É',
+    '&iacute;': 'í',
+    '&Iacute;': 'Í',
+    '&oacute;': 'ó',
+    '&Oacute;': 'Ó',
+    '&uacute;': 'ú',
+    '&Uacute;': 'Ú',
+    '&acirc;': 'â',
+    '&Acirc;': 'Â',
+    '&ecirc;': 'ê',
+    '&Ecirc;': 'Ê',
+    '&ocirc;': 'ô',
+    '&Ocirc;': 'Ô',
+    '&agrave;': 'à',
+    '&Agrave;': 'À',
+    '&ordf;': 'ª',
+    '&Ordf;': 'ª'
+  };
+
+  let decoded = text;
+  
+  // Replace named entities
+  for (const [entity, value] of Object.entries(entities)) {
+    const regex = new RegExp(entity, 'gi');
+    decoded = decoded.replace(regex, value);
+  }
+
+  // Replace decimal numeric entities (e.g. &#186;)
+  decoded = decoded.replace(/&#(\d+);/g, (match, numStr) => {
+    return String.fromCharCode(parseInt(numStr, 10));
+  });
+
+  // Replace hex numeric entities (e.g. &#xba;)
+  decoded = decoded.replace(/&#x([0-9a-f]+);/gi, (match, hexStr) => {
+    return String.fromCharCode(parseInt(hexStr, 16));
+  });
+
+  return decoded;
+}
+
 export interface Councilor {
   id?: string;
   external_id: string;
@@ -383,17 +445,23 @@ Você deve retornar obrigatoriamente um objeto JSON com:
 
             while ((match = trRegex.exec(html)) !== null) {
               const trContent = match[1];
+              const decodedTrContent = decodeHTMLEntities(trContent);
 
               // Linha válida de proposição deve conter Data Inicial ou Situação
-              if (!trContent.includes('Data Inicial:') && !trContent.includes('Situação')) {
+              if (!decodedTrContent.includes('Data Inicial:') && !decodedTrContent.includes('Situação')) {
                 continue;
               }
 
               // 1. Número, Ano, Tipo do cabeçalho
-              const headingMatch = trContent.match(/<h4>\s*([^<]+?)\s*(?:N&ordm;|N&ordm;|Nº|No)?\s*(\d+-\d+|\d+)\s*<\/h4>/i);
+              const headingMatch = decodedTrContent.match(/<h4>\s*([^<]+?)\s*(?:Nº|No|N\.º|No\.?|nº|n°)?\s*(\d+-\d+|\d+)\s*<\/h4>/i);
               if (!headingMatch) continue;
 
-              const fullType = headingMatch[1].trim().replace(/\s+/g, ' ');
+              let fullType = headingMatch[1].trim();
+              fullType = decodeHTMLEntities(fullType).trim();
+              // Clean duplicate Nº variations
+              fullType = fullType.replace(/\s*(?:N[º°ºo\.]|n[º°ºo\.]|No\.?|no\.?)\s*$/i, '').trim();
+              fullType = fullType.replace(/\s+/g, ' ');
+
               const numYearStr = headingMatch[2].trim();
               const numYearParts = numYearStr.split('-');
               const number = numYearParts[0] || '';
@@ -402,23 +470,23 @@ Você deve retornar obrigatoriamente um objeto JSON com:
               if (!number) continue;
 
               // 2. Data Inicial
-              const dateMatch = trContent.match(/<h4>Data Inicial:<\/h4>\s*([\d\/]+)/i);
+              const dateMatch = decodedTrContent.match(/<h4>Data Inicial:<\/h4>\s*([\d\/]+)/i);
               const date = dateMatch ? dateMatch[1].trim() : '';
 
               // 3. Situação
-              const statusMatch = trContent.match(/<h4>Situa&ccedil;&atilde;o<\/h4>\s*([^<]+)/i) || trContent.match(/<h4>Situação<\/h4>\s*([^<]+)/i);
-              const situation = statusMatch ? statusMatch[1].replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : '';
+              const statusMatch = decodedTrContent.match(/<h4>Situação<\/h4>\s*([^<]+)/i);
+              const situation = statusMatch ? statusMatch[1].replace(/\s+/g, ' ').trim() : '';
 
               // 4. Autoria bruta do site
-              const authorMatch = trContent.match(/<h4>Autor:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<ComentarioWebline>|<h4>|$|<!--)/i);
-              const rawAuthors = authorMatch ? authorMatch[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : '';
+              const authorMatch = decodedTrContent.match(/<h4>Autor:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<ComentarioWebline>|<h4>|$|<!--)/i);
+              const rawAuthors = authorMatch ? authorMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
 
               // 5. Ementa
-              const ementaMatch = trContent.match(/<h4>Ementa:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<hr class='hrListagem'>|<hr class="hrListagem">|$|<div)/i);
-              const ementa = ementaMatch ? ementaMatch[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : '';
+              const ementaMatch = decodedTrContent.match(/<h4>Ementa:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<hr class='hrListagem'>|<hr class="hrListagem">|$|<div)/i);
+              const ementa = ementaMatch ? ementaMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
 
               // 6. PDF
-              const fileMatch = trContent.match(/name="nome_arquivo"\s+value="([^"]+)"/i);
+              const fileMatch = decodedTrContent.match(/name="nome_arquivo"\s+value="([^"]+)"/i);
               const fileUrl = fileMatch ? `https://www.camarapprudente.sp.gov.br/arquivos/${fileMatch[1]}` : '';
 
               // Deduplicação forte baseada em chave única (tipo_proposição + número + ano)
@@ -617,17 +685,23 @@ Você deve retornar obrigatoriamente um objeto JSON com:
 
           while ((match = trRegex.exec(html)) !== null && stats.coletados < maxActs) {
             const trContent = match[1];
+            const decodedTrContent = decodeHTMLEntities(trContent);
 
             // Linha válida de proposição deve conter Data Inicial ou Situação
-            if (!trContent.includes('Data Inicial:') && !trContent.includes('Situação')) {
+            if (!decodedTrContent.includes('Data Inicial:') && !decodedTrContent.includes('Situação')) {
               continue;
             }
 
             // 1. Número, Ano, Tipo do cabeçalho
-            const headingMatch = trContent.match(/<h4>\s*([^<]+?)\s*(?:N&ordm;|N&ordm;|Nº|No)?\s*(\d+-\d+|\d+)\s*<\/h4>/i);
+            const headingMatch = decodedTrContent.match(/<h4>\s*([^<]+?)\s*(?:Nº|No|N\.º|No\.?|nº|n°)?\s*(\d+-\d+|\d+)\s*<\/h4>/i);
             if (!headingMatch) continue;
 
-            const fullType = headingMatch[1].trim().replace(/\s+/g, ' ');
+            let fullType = headingMatch[1].trim();
+            fullType = decodeHTMLEntities(fullType).trim();
+            // Clean duplicate Nº variations
+            fullType = fullType.replace(/\s*(?:N[º°ºo\.]|n[º°ºo\.]|No\.?|no\.?)\s*$/i, '').trim();
+            fullType = fullType.replace(/\s+/g, ' ');
+
             const numYearStr = headingMatch[2].trim();
             const numYearParts = numYearStr.split('-');
             const number = numYearParts[0] || '';
@@ -636,23 +710,23 @@ Você deve retornar obrigatoriamente um objeto JSON com:
             if (!number) continue;
 
             // 2. Data Inicial
-            const dateMatch = trContent.match(/<h4>Data Inicial:<\/h4>\s*([\d\/]+)/i);
+            const dateMatch = decodedTrContent.match(/<h4>Data Inicial:<\/h4>\s*([\d\/]+)/i);
             const date = dateMatch ? dateMatch[1].trim() : '';
 
             // 3. Situação
-            const statusMatch = trContent.match(/<h4>Situa&ccedil;&atilde;o<\/h4>\s*([^<]+)/i) || trContent.match(/<h4>Situação<\/h4>\s*([^<]+)/i);
-            const situation = statusMatch ? statusMatch[1].replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : '';
+            const statusMatch = decodedTrContent.match(/<h4>Situação<\/h4>\s*([^<]+)/i);
+            const situation = statusMatch ? statusMatch[1].replace(/\s+/g, ' ').trim() : '';
 
             // 4. Autoria bruta do site
-            const authorMatch = trContent.match(/<h4>Autor:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<ComentarioWebline>|<h4>|$|<!--)/i);
-            const rawAuthors = authorMatch ? authorMatch[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : '';
+            const authorMatch = decodedTrContent.match(/<h4>Autor:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<ComentarioWebline>|<h4>|$|<!--)/i);
+            const rawAuthors = authorMatch ? authorMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
 
             // 5. Ementa
-            const ementaMatch = trContent.match(/<h4>Ementa:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<hr class='hrListagem'>|<hr class="hrListagem">|$|<div)/i);
-            const ementa = ementaMatch ? ementaMatch[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : '';
+            const ementaMatch = decodedTrContent.match(/<h4>Ementa:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<hr class='hrListagem'>|<hr class="hrListagem">|$|<div)/i);
+            const ementa = ementaMatch ? ementaMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
 
             // 6. PDF
-            const fileMatch = trContent.match(/name="nome_arquivo"\s+value="([^"]+)"/i);
+            const fileMatch = decodedTrContent.match(/name="nome_arquivo"\s+value="([^"]+)"/i);
             const fileUrl = fileMatch ? `https://www.camarapprudente.sp.gov.br/arquivos/${fileMatch[1]}` : '';
 
             // Mapeamento fino de actType

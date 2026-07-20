@@ -492,6 +492,13 @@ export const categoryService = {
         .order('name');
       
       if (error) throw error;
+
+      // Clean up local storage from stale/deleted categories
+      if (typeof window !== 'undefined' && data) {
+        setStoredData('mp_fallback_categories', data);
+        setStoredData('mp_cache_categories', data);
+      }
+      
       return data as Category[];
     } catch (err) {
       console.warn('Local fallback for categoryService.getAll:', err);
