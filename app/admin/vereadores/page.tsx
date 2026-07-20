@@ -84,7 +84,11 @@ export default function CouncilorsAdminPage() {
       const data = await res.json();
       if (data.success) {
         if (data.stats) {
-          setSuccessMsg(`Sincronização concluída! ${data.stats.totalFound} registros identificados na fonte oficial: ${data.stats.inserted} inseridos, ${data.stats.updated} atualizados, ${data.stats.failed} falhas. Todos os ${data.stats.confirmedInDb} registros ativos/afastados foram confirmados por SELECT direto pós-persistência.`);
+          if (data.stats.vinculos_criados !== undefined) {
+            setSuccessMsg(`Sincronização de atos concluída com sucesso! Atos coletados: ${data.stats.totalFound} | Atos persistidos (inseridos): ${data.stats.inserted} | Atos atualizados (duplicações físicas evitadas): ${data.stats.updated} | Vínculos de autoria confirmados: ${data.stats.vinculos_criados} | Falhas: ${data.stats.failed || 0}.`);
+          } else {
+            setSuccessMsg(`Sincronização concluída! ${data.stats.totalFound} registros identificados na fonte oficial: ${data.stats.inserted} inseridos, ${data.stats.updated} atualizados, ${data.stats.failed} falhas. Todos os ${data.stats.confirmedInDb} registros ativos/afastados foram confirmados por SELECT direto pós-persistência.`);
+          }
         } else if (data.confirmedRecord) {
           setSuccessMsg(`Persistência controlada validada! Vereador [${data.confirmedRecord.display_name}] (Partido: ${data.confirmedRecord.party}) foi persistido com sucesso (UUID: ${data.confirmedRecord.id}) e confirmado por leitura direta pós-salvamento no Supabase.`);
         } else {

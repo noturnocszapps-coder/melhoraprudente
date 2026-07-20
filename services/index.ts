@@ -25,10 +25,7 @@ function setStoredData<T>(key: string, value: T): void {
 // Rich Mock Data in Portuguese about Presidente Prudente
 const DEFAULT_CATEGORIES: Category[] = [
   { id: 'cat-1', name: 'Cidade', slug: 'cidade', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-2', name: 'Política', slug: 'politica', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-3', name: 'Polícia', slug: 'policia', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-4', name: 'Esportes', slug: 'esportes', description: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'cat-5', name: 'Região', slug: 'regiao', description: null, is_active: true, created_at: new Date().toISOString() }
+  { id: 'cat-2', name: 'Região', slug: 'regiao', description: null, is_active: true, created_at: new Date().toISOString() }
 ];
 
 const DEFAULT_POSTS: Post[] = [];

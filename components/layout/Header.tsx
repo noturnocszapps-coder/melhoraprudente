@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Menu, Search, User, Bell, LogOut, LayoutDashboard, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { categoryService } from '@/services';
 
 export const Header = () => {
   const pathname = usePathname();
@@ -13,9 +14,24 @@ export const Header = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
   const { user, profile, signOut, isAdmin, isEditor } = useAuth();
   const [mounted, setMounted] = React.useState(false);
+  const [categories, setCategories] = React.useState<any[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = React.useState(true);
 
   React.useEffect(() => {
     setMounted(true);
+    
+    const fetchCategories = async () => {
+      try {
+        const data = await categoryService.getAll();
+        setCategories(data || []);
+      } catch (err) {
+        console.error('Error fetching header categories:', err);
+        setCategories([]);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+    fetchCategories();
   }, []);
 
   if (pathname?.startsWith('/admin')) {
@@ -130,12 +146,15 @@ export const Header = () => {
         {/* Desktop Navigation */}
         <nav className="hidden lg:flex items-center justify-center gap-10 py-4 border-t border-zinc-100 text-[11px] font-black uppercase tracking-[0.15em] text-zinc-500">
           <Link href="/" className="hover:text-red-600 transition-colors border-b-2 border-transparent hover:border-red-600 pb-1">Home</Link>
-          <Link href="/categoria/politica" className="hover:text-red-600 transition-colors border-b-2 border-transparent hover:border-red-600 pb-1">Política</Link>
-          <Link href="/categoria/economia" className="hover:text-red-600 transition-colors border-b-2 border-transparent hover:border-red-600 pb-1">Economia</Link>
-          <Link href="/categoria/esportes" className="hover:text-red-600 transition-colors border-b-2 border-transparent hover:border-red-600 pb-1">Esportes</Link>
-          <Link href="/categoria/cultura" className="hover:text-red-600 transition-colors border-b-2 border-transparent hover:border-red-600 pb-1">Cultura</Link>
-          <Link href="/categoria/policia" className="hover:text-red-600 transition-colors border-b-2 border-transparent hover:border-red-600 pb-1">Polícia</Link>
-          <Link href="/categoria/cidade" className="hover:text-red-600 transition-colors border-b-2 border-transparent hover:border-red-600 pb-1">Cidade</Link>
+          {!categoriesLoading && categories.map((category) => (
+            <Link 
+              key={category.id} 
+              href={`/categoria/${category.slug}`} 
+              className="hover:text-red-600 transition-colors border-b-2 border-transparent hover:border-red-600 pb-1"
+            >
+              {category.name}
+            </Link>
+          ))}
         </nav>
       </div>
 
@@ -156,11 +175,16 @@ export const Header = () => {
               
               <nav className="flex flex-col gap-6 text-lg font-black uppercase tracking-tighter">
                 <Link href="/" onClick={() => setIsMenuOpen(false)} className="hover:text-red-600">Home</Link>
-                <Link href="/categoria/politica" onClick={() => setIsMenuOpen(false)} className="hover:text-red-600">Política</Link>
-                <Link href="/categoria/economia" onClick={() => setIsMenuOpen(false)} className="hover:text-red-600">Economia</Link>
-                <Link href="/categoria/esportes" onClick={() => setIsMenuOpen(false)} className="hover:text-red-600">Esportes</Link>
-                <Link href="/categoria/cultura" onClick={() => setIsMenuOpen(false)} className="hover:text-red-600">Cultura</Link>
-                <Link href="/categoria/policia" onClick={() => setIsMenuOpen(false)} className="hover:text-red-600">Polícia</Link>
+                {!categoriesLoading && categories.map((category) => (
+                  <Link 
+                    key={category.id} 
+                    href={`/categoria/${category.slug}`} 
+                    onClick={() => setIsMenuOpen(false)} 
+                    className="hover:text-red-600"
+                  >
+                    {category.name}
+                  </Link>
+                ))}
               </nav>
 
               <div className="mt-auto pt-10 border-t border-zinc-100">

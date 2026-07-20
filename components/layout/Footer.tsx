@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Facebook, Instagram, Mail, Phone } from 'lucide-react';
-import { settingsService } from '@/services';
+import { settingsService, categoryService } from '@/services';
 import { Settings } from '@/types';
 
 const DEFAULT_FALLBACK_SETTINGS: Settings = {
@@ -54,6 +54,8 @@ const getWhatsAppLink = (phone: string | null): string => {
 export const Footer = () => {
   const pathname = usePathname();
   const [settings, setSettings] = useState<Settings>(DEFAULT_FALLBACK_SETTINGS);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -67,7 +69,25 @@ export const Footer = () => {
         console.error('Error fetching settings in Footer:', err);
       }
     };
+    const fetchCategories = async () => {
+      try {
+        const data = await categoryService.getAll();
+        if (active) {
+          setCategories(data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching categories in Footer:', err);
+        if (active) {
+          setCategories([]);
+        }
+      } finally {
+        if (active) {
+          setCategoriesLoading(false);
+        }
+      }
+    };
     fetchSettings();
+    fetchCategories();
     return () => {
       active = false;
     };
@@ -137,12 +157,13 @@ export const Footer = () => {
           <div className="lg:col-span-2">
             <h4 className="text-white font-black mb-4 lg:mb-8 uppercase tracking-[0.2em] text-[10px]">Editorias</h4>
             <ul className="grid grid-cols-2 gap-x-4 gap-y-3 lg:flex lg:flex-col lg:space-y-4 text-xs font-bold uppercase tracking-widest">
-              <li><Link href="/categoria/politica" className="hover:text-red-600 transition-colors">Política</Link></li>
-              <li><Link href="/categoria/economia" className="hover:text-red-600 transition-colors">Economia</Link></li>
-              <li><Link href="/categoria/esportes" className="hover:text-red-600 transition-colors">Esportes</Link></li>
-              <li><Link href="/categoria/cultura" className="hover:text-red-600 transition-colors">Cultura</Link></li>
-              <li><Link href="/categoria/policia" className="hover:text-red-600 transition-colors">Polícia</Link></li>
-              <li><Link href="/categoria/cidade" className="hover:text-red-600 transition-colors">Cidade</Link></li>
+              {!categoriesLoading && categories.map((category) => (
+                <li key={category.id}>
+                  <Link href={`/categoria/${category.slug}`} className="hover:text-red-600 transition-colors">
+                    {category.name}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 

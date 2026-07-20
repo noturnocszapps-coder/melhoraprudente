@@ -361,6 +361,7 @@ export const AdminCacheProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (error) throw error;
       setCategories(data || []);
       setStoredData('mp_cache_categories', data || []);
+      setStoredData('mp_fallback_categories', data || []);
     } catch (error) {
       console.error('Error refreshing categories:', error);
     } finally {

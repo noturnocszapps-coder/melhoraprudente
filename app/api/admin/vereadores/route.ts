@@ -70,133 +70,76 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST: Executa a coleta real e análise inteligente de atos na Câmara
+ * POST: Executa a coleta real e análise inteligente de atos na Câmara para o vereador William César Leite (VER-1449)
  */
 export async function POST(req: NextRequest) {
   try {
     const { errorResponse, client } = await validateAuth(req);
     if (errorResponse) return errorResponse;
 
-    console.log('[API Vereadores POST] Iniciando sincronização completa da Legislatura 2025–2028...');
+    console.log('[API Vereadores POST] Iniciando sincronização controlada de atos de William César Leite (VER-1449)...');
 
-    // 1. Coleta da lista de vereadores ativos em tempo real do site oficial
-    let officialList: any[] = [];
-    try {
-      officialList = await councilorCrawlerService.fetchOfficialCouncilorsList();
-    } catch (crawlerErr: any) {
-      console.warn('[API Vereadores POST] Falha ao coletar vereadores em tempo real:', crawlerErr.message);
-    }
-
-    if (!officialList || officialList.length === 0) {
-      officialList = require('@/services/news-sources/councilor-crawler-service').REAL_COUNCILORS;
-    }
-
-    console.log(`[API Vereadores POST] Total de vereadores para sincronização: ${officialList.length}`);
-
-    // 2. Buscar registros existentes no banco para detectar inserções vs atualizações e auditar UUIDs
-    const { data: dbCouncilors, error: selectDbError } = await client
+    // 1. Confirmar que o vereador existe e obter seu UUID real
+    const { data: william, error: williamError } = await client
       .from('councilors')
-      .select('id, external_id');
+      .select('id, name')
+      .eq('external_id', 'VER-1449')
+      .single();
 
-    if (selectDbError) {
-      console.error('[API Vereadores POST] Erro ao carregar perfis de comparação do banco:', selectDbError);
-    }
-
-    const dbMap = new Map<string, string>();
-    if (dbCouncilors) {
-      dbCouncilors.forEach(c => dbMap.set(c.external_id, c.id));
-    }
-
-    const results: any[] = [];
-    let insertedCount = 0;
-    let updatedCount = 0;
-    let failedCount = 0;
-
-    // 3. Executar o UPSERT de cada vereador mantendo integridade e respeitando RLS
-    for (const targetCouncilor of officialList) {
-      const existsInDb = dbMap.has(targetCouncilor.external_id);
-      const originalUuid = dbMap.get(targetCouncilor.external_id);
-
-      const { data: upsertData, error: upsertError } = await client
-        .from('councilors')
-        .upsert({
-          external_id: targetCouncilor.external_id,
-          name: targetCouncilor.name,
-          display_name: targetCouncilor.display_name,
-          party: targetCouncilor.party,
-          photo_url: targetCouncilor.photo_url || null,
-          official_url: targetCouncilor.official_url,
-          legislature: targetCouncilor.legislature || '2025-2028',
-          is_active: targetCouncilor.is_active ?? true
-        }, { onConflict: 'external_id' })
-        .select();
-
-      if (upsertError) {
-        console.error(`[API Vereadores POST] Erro de persistência para ${targetCouncilor.name}:`, upsertError);
-        failedCount++;
-        results.push({
-          name: targetCouncilor.name,
-          external_id: targetCouncilor.external_id,
-          party: targetCouncilor.party,
-          status: 'FALHOU',
-          error: upsertError.message
-        });
-      } else {
-        const persistedRow = upsertData[0];
-        const currentUuid = persistedRow.id;
-        const uuidUnchanged = existsInDb ? (originalUuid === currentUuid) : true;
-
-        if (existsInDb) {
-          updatedCount++;
-        } else {
-          insertedCount++;
-        }
-
-        results.push({
-          id: currentUuid,
-          name: persistedRow.name,
-          display_name: persistedRow.display_name,
-          external_id: persistedRow.external_id,
-          party: persistedRow.party,
-          is_active: persistedRow.is_active,
-          status: existsInDb ? 'ATUALIZADO' : 'INSERIDO',
-          uuid_preserved: uuidUnchanged
-        });
-      }
-    }
-
-    // 4. Executar consulta real (SELECT) posterior para confirmação e relatório
-    const { data: selectAllData, error: selectAllError } = await client
-      .from('councilors')
-      .select('*')
-      .order('display_name', { ascending: true });
-
-    if (selectAllError) {
-      console.error('[API Vereadores POST] Erro na leitura de confirmação completa:', selectAllError);
+    if (williamError || !william) {
       return NextResponse.json({
         success: false,
-        error: "Falha na leitura pós-persistência completa: " + selectAllError.message,
-        details: selectAllError
-      }, { status: 400 });
+        error: "Vereador William César Leite (VER-1449) não cadastrado na base. Favor realizar seed primeiro."
+      }, { status: 404 });
     }
 
-    console.log(`[API Vereadores POST] Confirmação obtida. Total no banco: ${selectAllData.length}`);
+    console.log(`[API Vereadores POST] Vereador alvo confirmado: ${william.name} (UUID: ${william.id})`);
+
+    // 2. Executar a sincronização controlada via Crawler Service
+    const syncResult = await councilorCrawlerService.fetchAndColetarAtosWilliam(client);
+
+    // 3. Executar SELECT real pós-persistência das tabelas para confirmação detalhada (pelo menos 5 atos)
+    const { data: testActs, error: testActsError } = await client
+      .from('legislative_acts')
+      .select(`
+        id,
+        external_id,
+        act_type,
+        number,
+        year,
+        status,
+        official_url,
+        authors:councilor_act_authors (
+          id,
+          councilor_id,
+          is_primary
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (testActsError) {
+      console.error('[API Vereadores POST] Erro na leitura de confirmação de atos:', testActsError);
+    }
 
     return NextResponse.json({
       success: true,
-      message: "Sincronização da Legislatura 2025–2028 concluída com sucesso!",
+      message: "Sincronização de amostra de atos reais de William César Leite concluída com sucesso!",
+      william_uuid: william.id,
       stats: {
-        totalFound: officialList.length,
-        inserted: insertedCount,
-        updated: updatedCount,
-        failed: failedCount,
-        confirmedInDb: selectAllData.length
+        totalFound: syncResult.coletados,
+        inserted: syncResult.inseridos,
+        updated: syncResult.atualizados,
+        vinculos_criados: syncResult.vinculos_criados,
+        duplicados_fisicos: syncResult.duplicados_fisicos,
+        failed: syncResult.errors.length
       },
-      results,
-      confirmedRecords: selectAllData
+      errors: syncResult.errors,
+      results: syncResult.results,
+      confirmedRecords: testActs || []
     });
   } catch (error: any) {
-    console.error('[API Vereadores POST] Erro:', error);
+    console.error('[API Vereadores POST] Erro no fluxo de atos:', error);
     return NextResponse.json({ success: false, error: "Erro interno: " + error.message }, { status: 500 });
   }
 }
