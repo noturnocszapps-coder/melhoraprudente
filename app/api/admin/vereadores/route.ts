@@ -127,11 +127,18 @@ export async function POST(req: NextRequest) {
       message: "Sincronização de amostra de atos reais de William César Leite concluída com sucesso!",
       william_uuid: william.id,
       stats: {
+        paginas_consultadas: syncResult.paginas_consultadas,
         totalFound: syncResult.coletados,
         inserted: syncResult.inseridos,
         updated: syncResult.atualizados,
         vinculos_criados: syncResult.vinculos_criados,
+        vinculos_atualizados: syncResult.vinculos_atualizados,
+        vinculos_existentes_sem_alteracao: syncResult.vinculos_existentes_sem_alteracao,
         duplicados_fisicos: syncResult.duplicados_fisicos,
+        existentes_sem_alteracao: syncResult.existentes_sem_alteracao,
+        registros_corrigidos_html: syncResult.registros_corrigidos_html,
+        total_antes: syncResult.total_antes,
+        total_depois: syncResult.total_depois,
         failed: syncResult.errors.length
       },
       errors: syncResult.errors,

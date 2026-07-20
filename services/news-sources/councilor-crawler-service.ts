@@ -19,6 +19,7 @@ export function decodeHTMLEntities(text: string): string {
     '&gt;': '>',
     '&quot;': '"',
     '&apos;': "'",
+    '&#39;': "'",
     '&ccedil;': 'ç',
     '&Ccedil;': 'Ç',
     '&atilde;': 'ã',
@@ -48,24 +49,61 @@ export function decodeHTMLEntities(text: string): string {
   };
 
   let decoded = text;
-  
-  // Replace named entities
-  for (const [entity, value] of Object.entries(entities)) {
-    const regex = new RegExp(entity, 'gi');
-    decoded = decoded.replace(regex, value);
+  let prev = '';
+  let iter = 0;
+
+  while (decoded !== prev && iter < 3) {
+    prev = decoded;
+    
+    // Replace named entities
+    for (const [entity, value] of Object.entries(entities)) {
+      const regex = new RegExp(entity, 'gi');
+      decoded = decoded.replace(regex, value);
+    }
+
+    // Replace decimal numeric entities (e.g. &#186;)
+    decoded = decoded.replace(/&#(\d+);/g, (match, numStr) => {
+      try {
+        return String.fromCharCode(parseInt(numStr, 10));
+      } catch {
+        return match;
+      }
+    });
+
+    // Replace hex numeric entities (e.g. &#xba;)
+    decoded = decoded.replace(/&#x([0-9a-f]+);/gi, (match, hexStr) => {
+      try {
+        return String.fromCharCode(parseInt(hexStr, 16));
+      } catch {
+        return match;
+      }
+    });
+    
+    iter++;
   }
 
-  // Replace decimal numeric entities (e.g. &#186;)
-  decoded = decoded.replace(/&#(\d+);/g, (match, numStr) => {
-    return String.fromCharCode(parseInt(numStr, 10));
-  });
-
-  // Replace hex numeric entities (e.g. &#xba;)
-  decoded = decoded.replace(/&#x([0-9a-f]+);/gi, (match, hexStr) => {
-    return String.fromCharCode(parseInt(hexStr, 16));
-  });
-
   return decoded;
+}
+
+export function normalizeTitle(fullType: string, number: string, year: string): string {
+  // 1. Decodificar HTML e normalizar espaços
+  let decodedType = decodeHTMLEntities(fullType).replace(/\s+/g, ' ').trim();
+
+  // 2. Limpar marcadores de número duplicados ou redundantes no final ou meio do tipo oficial
+  // Ex: "Projeto de Lei N°", "Indicação nº", "Projeto de Decreto Legislativo Nº nº", etc.
+  const markerRegex = /\s*(?:N[º°o\.]|n[º°o\.]|No\.?|no\.?|N\.º|n\.º)\s*/gi;
+  decodedType = decodedType.replace(markerRegex, ' ').trim();
+  
+  // Limpar espaços duplicados criados pela remoção
+  decodedType = decodedType.replace(/\s+/g, ' ').trim();
+
+  // Garantir primeira letra maiúscula
+  if (decodedType.length > 0) {
+    decodedType = decodedType.charAt(0).toUpperCase() + decodedType.slice(1);
+  }
+
+  // 3. Montar o título final com um único "nº" padronizado
+  return `${decodedType} nº ${number}/${year}`;
 }
 
 export interface Councilor {
@@ -611,23 +649,37 @@ Você deve retornar obrigatoriamente um objeto JSON com:
 
   /**
    * Coleta controlada de atos reais especificamente para o vereador William César Leite (VER-1449).
-   * Limita a coleta a no máximo 20 atos reais e calcula autoria com precisão.
+   * Implementa paginação completa, decodificação robusta e idempotência real de dados factuais.
    */
   public async fetchAndColetarAtosWilliam(supabaseClient = supabase): Promise<{
+    paginas_consultadas: number;
     coletados: number;
     inseridos: number;
     atualizados: number;
     vinculos_criados: number;
+    vinculos_atualizados: number;
+    vinculos_existentes_sem_alteracao: number;
     duplicados_fisicos: number;
+    existentes_sem_alteracao: number;
+    registros_corrigidos_html: number;
+    total_antes: number;
+    total_depois: number;
     errors: string[];
     results: any[];
   }> {
     const stats = {
+      paginas_consultadas: 0,
       coletados: 0,
       inseridos: 0,
       atualizados: 0,
       vinculos_criados: 0,
+      vinculos_atualizados: 0,
+      vinculos_existentes_sem_alteracao: 0,
       duplicados_fisicos: 0,
+      existentes_sem_alteracao: 0,
+      registros_corrigidos_html: 0,
+      total_antes: 0,
+      total_depois: 0,
       errors: [] as string[],
       results: [] as any[]
     };
@@ -651,6 +703,16 @@ Você deve retornar obrigatoriamente um objeto JSON com:
 
       console.log(`[CouncilorCrawler] Localizado William César Leite. UUID: ${william.id}`);
 
+      // 2. Contar total de atos vinculados antes da execução
+      const { count: countAntes, error: countAntesErr } = await supabaseClient
+        .from('councilor_act_authors')
+        .select('*', { count: 'exact', head: true })
+        .eq('councilor_id', william.id);
+
+      if (!countAntesErr) {
+        stats.total_antes = countAntes || 0;
+      }
+
       const searchTypes = [
         { type: 'projeto', actType: 'projeto_lei', defaultCategory: 'LEGISLAÇÃO SUBSTANTIVA' },
         { type: 'indicacao', actType: 'indicacao', defaultCategory: 'DEMANDAS LOCAIS' },
@@ -658,220 +720,359 @@ Você deve retornar obrigatoriamente um objeto JSON com:
         { type: 'requerimento', actType: 'requerimento', defaultCategory: 'FISCALIZAÇÃO' }
       ];
 
-      const maxActs = 20;
+      // Conjunto para deduplicação em memória durante esta execução
+      const seenExternalIdsInSession = new Set<string>();
 
       for (const st of searchTypes) {
-        if (stats.coletados >= maxActs) break;
+        let pg = 1;
+        let hasMore = true;
+        const maxPagesSecurity = 50; // limite de segurança contra loop infinito
 
-        const url = `https://www.camarapprudente.sp.gov.br/site/Proposituras/?pag=T1RjPU9EZz1PVFU9T0dFPU9EWT1PR0k9T1RZPU9XST0=&idver=1449&idleg=23&view=&tpBusca=${st.type}&pg=1`;
-        console.log(`[CouncilorCrawler] Coleta de William: buscando tipo "${st.type}" da URL: ${url}`);
-
-        try {
-          const res = await fetch(url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            signal: AbortSignal.timeout(10000)
-          });
-
-          if (!res.ok) {
-            console.warn(`[CouncilorCrawler] HTTP ${res.status} ao buscar proposições de William`);
-            continue;
+        while (hasMore && pg <= maxPagesSecurity) {
+          // Delay amigável de 300ms entre as requisições a partir da pg 2 para não sobrecarregar a Câmara
+          if (pg > 1) {
+            await new Promise(resolve => setTimeout(resolve, 300));
           }
 
-          const html = await res.text();
-          const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-          let match;
+          const url = `https://www.camarapprudente.sp.gov.br/site/Proposituras/?pag=T1RjPU9EZz1PVFU9T0dFPU9EWT1PR0k9T1RZPU9XST0=&idver=1449&idleg=23&view=&tpBusca=${st.type}&pg=${pg}`;
+          console.log(`[CouncilorCrawler] William: buscando tipo "${st.type}" na página ${pg} (URL: ${url})`);
+          stats.paginas_consultadas++;
 
-          while ((match = trRegex.exec(html)) !== null && stats.coletados < maxActs) {
-            const trContent = match[1];
-            const decodedTrContent = decodeHTMLEntities(trContent);
-
-            // Linha válida de proposição deve conter Data Inicial ou Situação
-            if (!decodedTrContent.includes('Data Inicial:') && !decodedTrContent.includes('Situação')) {
-              continue;
-            }
-
-            // 1. Número, Ano, Tipo do cabeçalho
-            const headingMatch = decodedTrContent.match(/<h4>\s*([^<]+?)\s*(?:Nº|No|N\.º|No\.?|nº|n°)?\s*(\d+-\d+|\d+)\s*<\/h4>/i);
-            if (!headingMatch) continue;
-
-            let fullType = headingMatch[1].trim();
-            fullType = decodeHTMLEntities(fullType).trim();
-            // Clean duplicate Nº variations
-            fullType = fullType.replace(/\s*(?:N[º°ºo\.]|n[º°ºo\.]|No\.?|no\.?)\s*$/i, '').trim();
-            fullType = fullType.replace(/\s+/g, ' ');
-
-            const numYearStr = headingMatch[2].trim();
-            const numYearParts = numYearStr.split('-');
-            const number = numYearParts[0] || '';
-            const year = numYearParts[1] || '';
-
-            if (!number) continue;
-
-            // 2. Data Inicial
-            const dateMatch = decodedTrContent.match(/<h4>Data Inicial:<\/h4>\s*([\d\/]+)/i);
-            const date = dateMatch ? dateMatch[1].trim() : '';
-
-            // 3. Situação
-            const statusMatch = decodedTrContent.match(/<h4>Situação<\/h4>\s*([^<]+)/i);
-            const situation = statusMatch ? statusMatch[1].replace(/\s+/g, ' ').trim() : '';
-
-            // 4. Autoria bruta do site
-            const authorMatch = decodedTrContent.match(/<h4>Autor:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<ComentarioWebline>|<h4>|$|<!--)/i);
-            const rawAuthors = authorMatch ? authorMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
-
-            // 5. Ementa
-            const ementaMatch = decodedTrContent.match(/<h4>Ementa:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<hr class='hrListagem'>|<hr class="hrListagem">|$|<div)/i);
-            const ementa = ementaMatch ? ementaMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
-
-            // 6. PDF
-            const fileMatch = decodedTrContent.match(/name="nome_arquivo"\s+value="([^"]+)"/i);
-            const fileUrl = fileMatch ? `https://www.camarapprudente.sp.gov.br/arquivos/${fileMatch[1]}` : '';
-
-            // Mapeamento fino de actType
-            let finalActType = st.actType;
-            const ftLower = fullType.toLowerCase();
-            if (ftLower.includes('decreto legislativo')) {
-              finalActType = 'projeto_decreto_legislativo';
-            } else if (ftLower.includes('resolução') || ftLower.includes('resolucao')) {
-              finalActType = 'projeto_resolucao';
-            } else if (ftLower.includes('emenda')) {
-              finalActType = 'emenda';
-            } else if (ftLower.includes('projeto de lei')) {
-              finalActType = 'projeto_lei';
-            }
-
-            // Chave única determinística e estável
-            const externalId = `${finalActType.toUpperCase()}-${number}-${year}`;
-            stats.coletados++;
-
-            // Verificar se já existe no banco
-            const { data: existingAct, error: selectErr } = await supabaseClient
-              .from('legislative_acts')
-              .select('id, external_id')
-              .eq('external_id', externalId)
-              .maybeSingle();
-
-            if (selectErr) {
-              console.error(`[CouncilorCrawler] Erro ao buscar se existe ${externalId}:`, selectErr);
-            }
-
-            let actId: string;
-            const isNew = !existingAct;
-
-            let actCategory = st.defaultCategory;
-            const emUpper = ementa.toUpperCase();
-            if (emUpper.includes('DENOMINA') || emUpper.includes('DECLARA DE UTILIDADE') || emUpper.includes('CONGRATULA') || emUpper.includes('VOTO DE CONGRATULAÇÕES')) {
-              actCategory = 'ATOS SIMBÓLICOS';
-            }
-
-            let finalSummary = ementa;
-            let finalExplanation = "Este ato legislativo municipal está sob análise pela curadoria do portal Melhora Prudente.";
-            let finalRelevance = 50;
-
-            // IA opcional do Gemini
-            if (process.env.GEMINI_API_KEY) {
-              try {
-                const analysis = await this.analyzeActWithGemini(`${fullType} nº ${number}/${year}`, ementa);
-                actCategory = analysis.act_category || actCategory;
-                finalSummary = analysis.summary || finalSummary;
-                finalExplanation = analysis.explanation_citizen || finalExplanation;
-                finalRelevance = analysis.relevance_score ?? finalRelevance;
-              } catch (e) {
-                console.warn(`[CouncilorCrawler] Falha ao enriquecer ato ${externalId} com IA:`, e);
-              }
-            }
-
-            const protocolDateParsed = date ? `${date.split('/')[2]}-${date.split('/')[1]}-${date.split('/')[0]}T12:00:00Z` : new Date().toISOString();
-            const isCoauthored = rawAuthors.includes(',') || rawAuthors.toLowerCase().includes(' e ') || rawAuthors.toLowerCase().includes('outros');
-
-            const actPayload = {
-              external_id: externalId,
-              act_type: finalActType,
-              act_category: actCategory,
-              number: number,
-              year: year,
-              title: `${fullType} nº ${number}/${year}`,
-              summary: finalSummary,
-              protocol_date: protocolDateParsed,
-              status: situation || 'PROTOCOLO',
-              official_url: fileUrl || url,
-              is_coauthored: isCoauthored,
-              updated_at: new Date().toISOString()
-            };
-
-            const { data: upsertData, error: actError } = await supabaseClient
-              .from('legislative_acts')
-              .upsert(actPayload, { onConflict: 'external_id' })
-              .select('id')
-              .single();
-
-            if (actError) {
-              console.error(`[CouncilorCrawler] Erro ao fazer UPSERT de ${externalId}:`, actError);
-              stats.errors.push(`Erro ao salvar ato ${externalId}: ${actError.message}`);
-              continue;
-            }
-
-            actId = upsertData.id;
-            if (isNew) {
-              stats.inseridos++;
-            } else {
-              stats.atualizados++;
-              stats.duplicados_fisicos++; // Evitamos duplicação física (registro atualizado na mesma linha)
-            }
-
-            // Determinar autoria
-            // "Definir: is_primary = true somente quando a fonte oficial comprovar que William é autor principal"
-            const authorList = rawAuthors.split(/,|\be\b|;/i).map(a => a.trim()).filter(Boolean);
-            let isPrimary = false;
-
-            if (!isCoauthored) {
-              isPrimary = true;
-            } else if (authorList.length > 0) {
-              const firstAuthor = authorList[0].toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-              const williamNorm = "WILLIAM CESAR LEITE";
-              isPrimary = firstAuthor.includes(williamNorm) || williamNorm.includes(firstAuthor);
-            }
-
-            // Criar vínculo de autoria
-            const { error: authorErr } = await supabaseClient
-              .from('councilor_act_authors')
-              .upsert({
-                act_id: actId,
-                councilor_id: william.id,
-                is_primary: isPrimary
-              }, { onConflict: 'act_id,councilor_id' });
-
-            if (authorErr) {
-              console.error(`[CouncilorCrawler] Erro ao vincular autor ao ato ${externalId}:`, authorErr);
-              stats.errors.push(`Erro de vínculo em ${externalId}: ${authorErr.message}`);
-            } else {
-              stats.vinculos_criados++;
-            }
-
-            stats.results.push({
-              id: actId,
-              external_id: externalId,
-              act_type: finalActType,
-              number,
-              year,
-              title: actPayload.title,
-              status: actPayload.status,
-              is_coauthored: isCoauthored,
-              is_primary: isPrimary,
-              councilor_id: william.id
+          try {
+            const res = await fetch(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              },
+              signal: AbortSignal.timeout(15000)
             });
-          }
 
-        } catch (stErr: any) {
-          console.error(`[CouncilorCrawler] Erro no tipo ${st.type}:`, stErr);
-          stats.errors.push(`Erro no tipo ${st.type}: ${stErr.message}`);
+            if (!res.ok) {
+              console.warn(`[CouncilorCrawler] HTTP ${res.status} ao buscar tipo ${st.type} na página ${pg}`);
+              hasMore = false; // Parar paginação para este tipo se der erro HTTP
+              continue;
+            }
+
+            const html = await res.text();
+            const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+            let match;
+            let validCountInPage = 0;
+
+            while ((match = trRegex.exec(html)) !== null) {
+              const trContent = match[1];
+              // Decodificar toda a linha <tr> antes de qualquer regex
+              const decodedTrContent = decodeHTMLEntities(trContent);
+
+              // Linha válida de proposição deve conter Data Inicial ou Situação
+              if (!decodedTrContent.includes('Data Inicial:') && !decodedTrContent.includes('Situação')) {
+                continue;
+              }
+
+              // 1. Número, Ano, Tipo do cabeçalho
+              const headingMatch = decodedTrContent.match(/<h4>\s*([^<]+?)\s*(?:Nº|No|N\.º|No\.?|nº|n°)?\s*(\d+-\d+|\d+)\s*<\/h4>/i);
+              if (!headingMatch) continue;
+
+              let rawFullType = headingMatch[1].trim();
+              const numYearStr = headingMatch[2].trim();
+              const numYearParts = numYearStr.split('-');
+              const number = decodeHTMLEntities(numYearParts[0] || '').trim();
+              const year = decodeHTMLEntities(numYearParts[1] || '').trim();
+
+              if (!number) continue;
+              validCountInPage++;
+
+              // 2. Data Inicial
+              const dateMatch = decodedTrContent.match(/<h4>Data Inicial:<\/h4>\s*([\d\/]+)/i);
+              const rawDate = dateMatch ? dateMatch[1].trim() : '';
+              const date = decodeHTMLEntities(rawDate).trim();
+
+              // 3. Situação
+              const statusMatch = decodedTrContent.match(/<h4>Situação<\/h4>\s*([^<]+)/i);
+              const situation = statusMatch ? decodeHTMLEntities(statusMatch[1]).replace(/\s+/g, ' ').trim() : '';
+
+              // 4. Autoria bruta do site
+              const authorMatch = decodedTrContent.match(/<h4>Autor:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<ComentarioWebline>|<h4>|$|<!--)/i);
+              const rawAuthors = authorMatch ? decodeHTMLEntities(authorMatch[1]).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
+
+              // 5. Ementa
+              const ementaMatch = decodedTrContent.match(/<h4>Ementa:<\/h4>\s*([\s\S]*?)\s*(?:<\/div>|<hr class='hrListagem'>|<hr class="hrListagem">|$|<div)/i);
+              const ementa = ementaMatch ? decodeHTMLEntities(ementaMatch[1]).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
+
+              // 6. PDF
+              const fileMatch = decodedTrContent.match(/name="nome_arquivo"\s+value="([^"]+)"/i);
+              const fileUrl = fileMatch ? `https://www.camarapprudente.sp.gov.br/arquivos/${decodeHTMLEntities(fileMatch[1]).trim()}` : '';
+
+              // Mapeamento preciso de actType
+              let finalActType = st.actType;
+              const ftLower = rawFullType.toLowerCase();
+              if (ftLower.includes('decreto legislativo')) {
+                finalActType = 'projeto_decreto_legislativo';
+              } else if (ftLower.includes('resolução') || ftLower.includes('resolucao')) {
+                finalActType = 'projeto_resolucao';
+              } else if (ftLower.includes('emenda')) {
+                finalActType = 'emenda';
+              } else if (ftLower.includes('projeto de lei')) {
+                finalActType = 'projeto_lei';
+              }
+
+              // Normalizar Título usando nossa nova função genérica
+              const actTitle = normalizeTitle(rawFullType, number, year);
+
+              // Chave única determinística e estável
+              const externalId = `${finalActType.toUpperCase()}-${number}-${year}`;
+
+              // Evitar processar o mesmo ato duas vezes na mesma sessão
+              if (seenExternalIdsInSession.has(externalId)) {
+                continue;
+              }
+              seenExternalIdsInSession.add(externalId);
+              stats.coletados++;
+
+              // Classificação Analítica Fina
+              let actCategory = st.defaultCategory;
+              const emUpper = ementa.toUpperCase();
+
+              if (finalActType === 'projeto_decreto_legislativo') {
+                if (emUpper.includes('TITULO') || emUpper.includes('TÍTULO') || emUpper.includes('CIDADÃO') || emUpper.includes('MEDALHA') || emUpper.includes('HONRARIA') || emUpper.includes('HOMENAGEM') || emUpper.includes('CONCEDE') || emUpper.includes('DIPLOMA') || emUpper.includes('CONGRATULA')) {
+                  actCategory = 'ATOS SIMBÓLICOS';
+                } else {
+                  actCategory = 'LEGISLAÇÃO SUBSTANTIVA';
+                }
+              }
+
+              if (finalActType === 'projeto_lei') {
+                if (emUpper.includes('DENOMINA') || emUpper.includes('DECLARA DE UTILIDADE') || emUpper.includes('UTILIDADE PÚBLICA') || emUpper.includes('RUAS') || emUpper.includes('PRACA') || emUpper.includes('PRAÇA') || emUpper.includes('AVENIDA') || emUpper.includes('ROTATORIA') || emUpper.includes('ROTATÓRIA') || emUpper.includes('ESPAÇO PÚBLICO') || emUpper.includes('NOME') || emUpper.includes('ESTRADA')) {
+                  actCategory = 'ATOS SIMBÓLICOS';
+                }
+              }
+
+              if (finalActType === 'mocao') {
+                actCategory = 'ATOS SIMBÓLICOS';
+              }
+
+              // Verificar se já existe no banco
+              const { data: existingAct, error: selectErr } = await supabaseClient
+                .from('legislative_acts')
+                .select('*')
+                .eq('external_id', externalId)
+                .maybeSingle();
+
+              if (selectErr) {
+                console.error(`[CouncilorCrawler] Erro ao buscar se existe ${externalId}:`, selectErr);
+              }
+
+              let actId: string = '';
+              let needsUpdate = false;
+              let isHtmlCorrection = false;
+
+              let finalSummary = ementa;
+              let finalExplanation = "Este ato legislativo municipal está sob análise pela curadoria do portal Melhora Prudente.";
+              let finalRelevance = 50;
+
+              const protocolDateParsed = date ? `${date.split('/')[2]}-${date.split('/')[1]}-${date.split('/')[0]}T12:00:00Z` : new Date().toISOString();
+              const isCoauthored = rawAuthors.includes(',') || rawAuthors.toLowerCase().includes(' e ') || rawAuthors.toLowerCase().includes('outros');
+
+              if (existingAct) {
+                actId = existingAct.id;
+                
+                // Detectar se o banco continha entidades HTML codificadas como N&ordm; ou Indica&ccedil;&atilde;o
+                const hasHtmlInBank = /&[a-zA-Z]+;|&#[0-9]+;|&#x[0-9a-f]+/i.test(existingAct.title || '') || 
+                                      /&[a-zA-Z]+;|&#[0-9]+;|&#x[0-9a-f]+/i.test(existingAct.summary || '');
+
+                // Comparação justa e detalhada para evitar falsos updates (IDEMPOTÊNCIA)
+                const dbType = existingAct.act_type || '';
+                const dbCategory = existingAct.act_category || '';
+                const dbNumber = existingAct.number || '';
+                const dbYear = existingAct.year || '';
+                const dbTitle = existingAct.title || '';
+                const dbSummary = existingAct.summary || '';
+                const dbStatus = existingAct.status || '';
+                const dbOfficialUrl = existingAct.official_url || '';
+                const dbIsCoauthored = !!existingAct.is_coauthored;
+
+                // Se alguma informação real de fato mudou (incluindo decodificação correta de HTML)
+                if (dbType !== finalActType ||
+                    dbCategory !== actCategory ||
+                    dbNumber !== number ||
+                    dbYear !== year ||
+                    dbTitle !== actTitle ||
+                    dbSummary !== finalSummary ||
+                    dbStatus !== (situation || 'PROTOCOLO') ||
+                    dbOfficialUrl !== (fileUrl || url) ||
+                    dbIsCoauthored !== isCoauthored) {
+                  
+                  needsUpdate = true;
+                  if (hasHtmlInBank) {
+                    isHtmlCorrection = true;
+                  }
+                }
+              } else {
+                needsUpdate = true;
+              }
+
+              if (needsUpdate) {
+                // Se for um novo registro, ou se houver atualização real de dados
+                if (!existingAct && process.env.GEMINI_API_KEY) {
+                  try {
+                    const analysis = await this.analyzeActWithGemini(`${actTitle}`, ementa);
+                    actCategory = analysis.act_category || actCategory;
+                    finalSummary = analysis.summary || finalSummary;
+                    finalExplanation = analysis.explanation_citizen || finalExplanation;
+                    finalRelevance = analysis.relevance_score ?? finalRelevance;
+                  } catch (e) {
+                    console.warn(`[CouncilorCrawler] Falha ao enriquecer ato ${externalId} com IA:`, e);
+                  }
+                } else if (existingAct) {
+                  // Se for atualização de registro existente, preservar campos de IA já computados para não re-gastar tokens
+                  // ou usar a ementa limpa como sumário caso não tenha summary
+                  finalSummary = existingAct.summary || finalSummary;
+                }
+
+                const actPayload = {
+                  external_id: externalId,
+                  act_type: finalActType,
+                  act_category: actCategory,
+                  number: number,
+                  year: year,
+                  title: actTitle,
+                  summary: finalSummary,
+                  protocol_date: protocolDateParsed,
+                  status: situation || 'PROTOCOLO',
+                  official_url: fileUrl || url,
+                  is_coauthored: isCoauthored,
+                  updated_at: new Date().toISOString()
+                };
+
+                const { data: upsertData, error: actError } = await supabaseClient
+                  .from('legislative_acts')
+                  .upsert(actPayload, { onConflict: 'external_id' })
+                  .select('id')
+                  .single();
+
+                if (actError) {
+                  console.error(`[CouncilorCrawler] Erro ao salvar ato ${externalId}:`, actError);
+                  stats.errors.push(`Erro ao salvar ato ${externalId}: ${actError.message}`);
+                  continue;
+                }
+
+                actId = upsertData.id;
+                if (!existingAct) {
+                  stats.inseridos++;
+                } else {
+                  stats.atualizados++;
+                  if (isHtmlCorrection) {
+                    stats.registros_corrigidos_html++;
+                  }
+                }
+              } else {
+                stats.existentes_sem_alteracao++;
+                stats.duplicados_fisicos++; // Atos encontrados que não precisaram de alteração física no banco
+              }
+
+              // 5. Autoria confirmada pela fonte oficial
+              const rawAuthorsNorm = rawAuthors.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+              const williamNorm = "WILLIAM CESAR LEITE";
+              
+              // Verifica se William realmente é autor ou coautor deste ato
+              const containsWilliam = rawAuthorsNorm.includes(williamNorm) || rawAuthorsNorm.includes("WILLIAM CESAR") || rawAuthorsNorm.includes("VEREADOR WILLIAM");
+
+              if (containsWilliam) {
+                // Calcular se é autor principal (is_primary = true somente se for o primeiro da lista de autores)
+                const authorList = rawAuthors.split(/,|\be\b|;/i).map(a => a.trim()).filter(Boolean);
+                let isPrimary = false;
+
+                if (!isCoauthored) {
+                  isPrimary = true;
+                } else if (authorList.length > 0) {
+                  const firstAuthor = authorList[0].toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                  isPrimary = firstAuthor.includes(williamNorm) || williamNorm.includes(firstAuthor);
+                }
+
+                // Verificar se o vínculo já existe
+                const { data: existingAuthorLink } = await supabaseClient
+                  .from('councilor_act_authors')
+                  .select('*')
+                  .eq('act_id', actId)
+                  .eq('councilor_id', william.id)
+                  .maybeSingle();
+
+                if (!existingAuthorLink) {
+                  const { error: authorErr } = await supabaseClient
+                    .from('councilor_act_authors')
+                    .insert({
+                      act_id: actId,
+                      councilor_id: william.id,
+                      is_primary: isPrimary
+                    });
+
+                  if (authorErr) {
+                    console.error(`[CouncilorCrawler] Erro ao vincular autor ao ato ${externalId}:`, authorErr);
+                    stats.errors.push(`Erro de vínculo em ${externalId}: ${authorErr.message}`);
+                  } else {
+                    stats.vinculos_criados++;
+                  }
+                } else {
+                  // Se o vínculo já existe, atualizar is_primary se tiver mudado
+                  if (existingAuthorLink.is_primary !== isPrimary) {
+                    const { error: updateLinkErr } = await supabaseClient
+                      .from('councilor_act_authors')
+                      .update({ is_primary: isPrimary })
+                      .eq('act_id', actId)
+                      .eq('councilor_id', william.id);
+
+                    if (updateLinkErr) {
+                      console.error(`[CouncilorCrawler] Erro ao atualizar vínculo em ${externalId}:`, updateLinkErr);
+                    } else {
+                      stats.vinculos_atualizados++;
+                    }
+                  } else {
+                    stats.vinculos_existentes_sem_alteracao++;
+                  }
+                }
+              } else {
+                console.log(`[CouncilorCrawler] Autoria de William NÃO confirmada para o ato ${externalId} (Autores: "${rawAuthors}"). Não vinculado.`);
+              }
+
+              stats.results.push({
+                id: actId,
+                external_id: externalId,
+                act_type: finalActType,
+                number,
+                year,
+                title: actTitle,
+                status: situation || 'PROTOCOLO',
+                is_coauthored: isCoauthored,
+                is_primary: containsWilliam ? (rawAuthors.split(/,|\be\b|;/i).map(a => a.trim()).filter(Boolean)[0]?.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().includes(williamNorm) ?? true) : false,
+                official_url: fileUrl || url
+              });
+            }
+
+            // Se não encontrou nenhuma proposição válida nesta página, significa que chegamos ao fim da paginação para este tipo
+            if (validCountInPage === 0) {
+              hasMore = false;
+            } else {
+              pg++;
+            }
+
+          } catch (stErr: any) {
+            console.error(`[CouncilorCrawler] Erro na página ${pg} do tipo ${st.type}:`, stErr);
+            stats.errors.push(`Erro na página ${pg} do tipo ${st.type}: ${stErr.message}`);
+            hasMore = false; // Parar paginação para este tipo se der erro de rede
+          }
         }
       }
 
+      // 6. Contar total de atos vinculados após a execução
+      const { count: countDepois, error: countDepoisErr } = await supabaseClient
+        .from('councilor_act_authors')
+        .select('*', { count: 'exact', head: true })
+        .eq('councilor_id', william.id);
+
+      if (!countDepoisErr) {
+        stats.total_depois = countDepois || 0;
+      }
+
     } catch (e: any) {
-      console.error('[CouncilorCrawler] Erro geral na coleta de atos:', e);
+      console.error('[CouncilorCrawler] Erro geral na coleta de atos de William:', e);
       stats.errors.push(e.message);
     }
 
