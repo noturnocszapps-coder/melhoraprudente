@@ -69,6 +69,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       try {
         console.log('useAuth: Iniciando busca do perfil para o ID:', userId);
+        
+        // Verificar se há uma sessão ativa antes de fazer a consulta para evitar erros de RLS
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData?.session) {
+          console.log('useAuth: Nenhuma sessão ativa detectada ao tentar buscar o perfil. Cancelando busca.');
+          if (isMounted) {
+            setUser(null);
+            setProfile(null);
+            window.localStorage.removeItem('mp_auth_user');
+            window.localStorage.removeItem('mp_user_profile');
+            setLoading(false);
+          }
+          return;
+        }
+
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
@@ -76,7 +91,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .single();
 
         if (error) {
-          console.error('useAuth: Erro técnico ao buscar perfil do banco de dados:', error);
+          // Se for erro de permissão (RLS) ou JWT expirado, não lançar console.error assustador
+          console.warn('useAuth: Perfil não encontrado ou sem autorização:', error.message);
           if (isMounted) {
             setProfile(null);
             window.localStorage.removeItem('mp_user_profile');
@@ -89,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } catch (err) {
-        console.error('useAuth: Erro inesperado ao obter perfil:', err);
+        console.warn('useAuth: Erro inesperado ao obter perfil:', err);
         if (isMounted) {
           setProfile(null);
           window.localStorage.removeItem('mp_user_profile');
@@ -135,10 +151,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }, 4500);
 
-    // If we already have a cached profile, trigger a background refresh instead of a blocking load
-    if (user) {
-      fetchProfileData(user.id);
-    } else {
+    // Permitir que o listener onAuthStateChange lidere a busca inicial para sincronia perfeita e sem corrida
+    if (!user) {
       setLoading(false);
     }
 

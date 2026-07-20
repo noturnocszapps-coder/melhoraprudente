@@ -55,15 +55,50 @@ export class G1PresidentePrudenteSource implements NewsSource {
           externalId = Buffer.from(url).toString('base64').substring(0, 16);
         }
 
-        // 4. Extrair Data de Publicação
+        // 4. Extrair Data de Publicação (com fallback e validação prioritária pela URL)
+        let publishedAt: string | null = null;
+
+        // 4.1. Tentar extrair do feed RSS (pubDate)
         const pubDateMatch = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/i);
-        let publishedAt = new Date().toISOString();
         if (pubDateMatch) {
           try {
-            publishedAt = new Date(pubDateMatch[1].trim()).toISOString();
+            const parsed = new Date(pubDateMatch[1].trim());
+            if (!isNaN(parsed.getTime())) {
+              publishedAt = parsed.toISOString();
+            }
           } catch (e) {
-            console.warn('Erro ao converter data G1:', pubDateMatch[1], e);
+            console.warn('Erro ao converter data pubDate G1:', pubDateMatch[1], e);
           }
+        }
+
+        // 4.2. Tentar extrair data da URL (padrão do G1: /noticia/YYYY/MM/DD/)
+        // Este é o indicador definitivo da data original da publicação da pauta
+        const urlDateMatch = url.match(/\/noticia\/(\d{4})\/(\d{2})\/(\d{2})\//i);
+        if (urlDateMatch) {
+          const year = urlDateMatch[1];
+          const month = urlDateMatch[2];
+          const day = urlDateMatch[3];
+          const extractedUrlDateStr = `${year}-${month}-${day}T12:00:00.000Z`;
+
+          if (!publishedAt) {
+            publishedAt = extractedUrlDateStr;
+          } else {
+            // Se as datas forem inconsistentes (ano, mês ou dia não baterem), a data da URL sempre prevalece
+            const feedDateObj = new Date(publishedAt);
+            const feedYear = feedDateObj.getUTCFullYear();
+            const feedMonth = String(feedDateObj.getUTCMonth() + 1).padStart(2, '0');
+            const feedDay = String(feedDateObj.getUTCDate()).padStart(2, '0');
+
+            if (String(feedYear) !== year || feedMonth !== month || feedDay !== day) {
+              console.log(`[Garimpo G1] Inconsistência temporal detectada para URL ${url}. Feed pubDate: ${feedYear}-${feedMonth}-${feedDay}. URL: ${year}-${month}-${day}. Usando a data original da URL.`);
+              publishedAt = extractedUrlDateStr;
+            }
+          }
+        }
+
+        // 4.3. Sem data original confiável: NÃO assumir hoje (sem fallback de new Date() para G1)
+        if (!publishedAt) {
+          publishedAt = 'unknown';
         }
 
         // 5. Extrair Imagem

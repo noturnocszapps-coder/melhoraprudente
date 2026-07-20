@@ -365,12 +365,25 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
             continue;
           }
 
-          // Filtrar por data da janela limite
+          // Filtrar por data da janela limite (Regra Temporal Rigorosa)
           const itemsWithinWindow = scrapedItems.filter(item => {
+            if (!item.publishedAt || item.publishedAt === 'unknown') {
+              console.log(`[GarimpoService] Filtro Temporal: Descartado por data desconhecida. Matéria: "${item.title}" (${item.url})`);
+              stats.old++;
+              return false;
+            }
             const pubDate = new Date(item.publishedAt);
+            if (isNaN(pubDate.getTime())) {
+              console.log(`[GarimpoService] Filtro Temporal: Descartado por data inválida (${item.publishedAt}). Matéria: "${item.title}" (${item.url})`);
+              stats.old++;
+              return false;
+            }
             const isInWindow = pubDate >= limitDate;
             if (!isInWindow) {
+              console.log(`[GarimpoService] Filtro Temporal: Descartado por ser ANTIGA / FORA DA JANELA. Data Original: ${pubDate.toLocaleDateString('pt-BR')}, Janela Limite: ${limitDate.toLocaleDateString('pt-BR')} (${daysLimit} dias). Matéria: "${item.title}" (${item.url}) - AÇÃO: IGNORADA ANTES DA IA.`);
               stats.old++;
+            } else {
+              console.log(`[GarimpoService] Filtro Temporal: Mantido na janela. Data Original: ${pubDate.toLocaleDateString('pt-BR')}, Janela Limite: ${limitDate.toLocaleDateString('pt-BR')}. Matéria: "${item.title}"`);
             }
             return isInWindow;
           });

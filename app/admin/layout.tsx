@@ -18,7 +18,9 @@ import {
   Menu,
   X,
   ArrowLeft,
-  Sparkles
+  Sparkles,
+  Vote,
+  BookOpen
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -41,6 +43,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.prefetch('/admin/anuncios');
     router.prefetch('/admin/configuracoes');
     router.prefetch('/admin/garimpo');
+    router.prefetch('/admin/vereadores');
+    router.prefetch('/admin/diario');
     router.prefetch('/');
   }, [router]);
 
@@ -97,6 +101,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
     { icon: FileText, label: 'Notícias', path: '/admin/noticias' },
     { icon: Sparkles, label: 'Garimpo por IA', path: '/admin/garimpo' },
+    { icon: Vote, label: 'Raio-X Vereadores', path: '/admin/vereadores' },
+    { icon: BookOpen, label: 'Diário Inteligente', path: '/admin/diario' },
     { icon: FolderTree, label: 'Categorias', path: '/admin/categorias' },
     { icon: MessageSquare, label: 'Comentários', path: '/admin/comentarios' },
     { icon: Users, label: 'Usuários', path: '/admin/usuarios', adminOnly: true },
