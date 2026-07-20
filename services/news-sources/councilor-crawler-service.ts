@@ -123,15 +123,32 @@ export class CouncilorCrawlerService {
           const imgMatch = linkInner.match(/background:url\('([^']+)'\)/i) || linkInner.match(/src="([^"]+)"/i);
           const photoUrl = imgMatch ? imgMatch[1] : '';
 
+          const isAfastado = photoUrl.toLowerCase().includes('afastado') || idver === '1454';
+          const isActive = !isAfastado;
+
+          let finalParty = party;
+          let finalDisplayName = displayName;
+
+          // Merge with static backups if live parsed is missing or sem partido
+          const staticBackup = REAL_COUNCILORS.find(c => c.external_id === `VER-${idver}`);
+          if (staticBackup) {
+            if (!finalParty || finalParty === 'Sem Partido') {
+              finalParty = staticBackup.party;
+            }
+            if (!finalDisplayName) {
+              finalDisplayName = staticBackup.display_name;
+            }
+          }
+
           councilors.push({
             external_id: `VER-${idver}`,
-            name: displayName,
-            display_name: displayName,
-            party: party,
+            name: finalDisplayName || displayName,
+            display_name: finalDisplayName || displayName,
+            party: finalParty || party,
             photo_url: photoUrl,
             official_url: href,
             legislature: '2025-2028',
-            is_active: true
+            is_active: isActive
           });
         }
       }

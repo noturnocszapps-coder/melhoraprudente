@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     const { errorResponse, client } = await validateAuth(req);
     if (errorResponse) return errorResponse;
 
-    console.log('[API Vereadores POST] Iniciando teste controlado de 1 único vereador...');
+    console.log('[API Vereadores POST] Iniciando sincronização completa da Legislatura 2025–2028...');
 
     // 1. Coleta da lista de vereadores ativos em tempo real do site oficial
     let officialList: any[] = [];
@@ -87,71 +87,113 @@ export async function POST(req: NextRequest) {
       console.warn('[API Vereadores POST] Falha ao coletar vereadores em tempo real:', crawlerErr.message);
     }
 
-    // 2. Localizar o vereador WILLIAM CÉSAR LEITE (external_id: VER-1449)
-    let targetCouncilor = officialList.find(c => c.external_id === 'VER-1449');
-
-    if (!targetCouncilor) {
-      console.log('[API Vereadores POST] Vereador VER-1449 não encontrado na listagem ao vivo, utilizando dados estáticos seguros.');
-      const backupList = require('@/services/news-sources/councilor-crawler-service').REAL_COUNCILORS;
-      targetCouncilor = backupList.find((c: any) => c.external_id === 'VER-1449');
+    if (!officialList || officialList.length === 0) {
+      officialList = require('@/services/news-sources/councilor-crawler-service').REAL_COUNCILORS;
     }
 
-    if (!targetCouncilor) {
-      return NextResponse.json({ success: false, error: "Vereador William César Leite não foi localizado nos dados de backup ou ao vivo." }, { status: 404 });
-    }
+    console.log(`[API Vereadores POST] Total de vereadores para sincronização: ${officialList.length}`);
 
-    console.log('[API Vereadores POST] Vereador coletado para teste de persistência:', targetCouncilor.name);
-
-    // 3. Executar o UPSERT no Supabase usando o cliente autenticado (respeitando RLS)
-    const { data: upsertData, error: upsertError } = await client
+    // 2. Buscar registros existentes no banco para detectar inserções vs atualizações e auditar UUIDs
+    const { data: dbCouncilors, error: selectDbError } = await client
       .from('councilors')
-      .upsert({
-        external_id: targetCouncilor.external_id,
-        name: targetCouncilor.name,
-        display_name: targetCouncilor.display_name,
-        party: targetCouncilor.party,
-        photo_url: targetCouncilor.photo_url || null,
-        official_url: targetCouncilor.official_url,
-        legislature: targetCouncilor.legislature || '2025-2028',
-        is_active: targetCouncilor.is_active ?? true
-      }, { onConflict: 'external_id' })
-      .select();
+      .select('id, external_id');
 
-    if (upsertError) {
-      console.error('[API Vereadores POST] Erro de persistência (UPSERT) com RLS:', upsertError);
-      return NextResponse.json({
-        success: false,
-        error: "Falha na persistência sob RLS: " + upsertError.message,
-        details: upsertError
-      }, { status: 400 });
+    if (selectDbError) {
+      console.error('[API Vereadores POST] Erro ao carregar perfis de comparação do banco:', selectDbError);
     }
 
-    console.log('[API Vereadores POST] UPSERT concluído com sucesso:', upsertData);
+    const dbMap = new Map<string, string>();
+    if (dbCouncilors) {
+      dbCouncilors.forEach(c => dbMap.set(c.external_id, c.id));
+    }
 
-    // 4. Executar uma consulta real (SELECT) posterior pelo external_id
-    const { data: selectData, error: selectError } = await client
+    const results: any[] = [];
+    let insertedCount = 0;
+    let updatedCount = 0;
+    let failedCount = 0;
+
+    // 3. Executar o UPSERT de cada vereador mantendo integridade e respeitando RLS
+    for (const targetCouncilor of officialList) {
+      const existsInDb = dbMap.has(targetCouncilor.external_id);
+      const originalUuid = dbMap.get(targetCouncilor.external_id);
+
+      const { data: upsertData, error: upsertError } = await client
+        .from('councilors')
+        .upsert({
+          external_id: targetCouncilor.external_id,
+          name: targetCouncilor.name,
+          display_name: targetCouncilor.display_name,
+          party: targetCouncilor.party,
+          photo_url: targetCouncilor.photo_url || null,
+          official_url: targetCouncilor.official_url,
+          legislature: targetCouncilor.legislature || '2025-2028',
+          is_active: targetCouncilor.is_active ?? true
+        }, { onConflict: 'external_id' })
+        .select();
+
+      if (upsertError) {
+        console.error(`[API Vereadores POST] Erro de persistência para ${targetCouncilor.name}:`, upsertError);
+        failedCount++;
+        results.push({
+          name: targetCouncilor.name,
+          external_id: targetCouncilor.external_id,
+          party: targetCouncilor.party,
+          status: 'FALHOU',
+          error: upsertError.message
+        });
+      } else {
+        const persistedRow = upsertData[0];
+        const currentUuid = persistedRow.id;
+        const uuidUnchanged = existsInDb ? (originalUuid === currentUuid) : true;
+
+        if (existsInDb) {
+          updatedCount++;
+        } else {
+          insertedCount++;
+        }
+
+        results.push({
+          id: currentUuid,
+          name: persistedRow.name,
+          display_name: persistedRow.display_name,
+          external_id: persistedRow.external_id,
+          party: persistedRow.party,
+          is_active: persistedRow.is_active,
+          status: existsInDb ? 'ATUALIZADO' : 'INSERIDO',
+          uuid_preserved: uuidUnchanged
+        });
+      }
+    }
+
+    // 4. Executar consulta real (SELECT) posterior para confirmação e relatório
+    const { data: selectAllData, error: selectAllError } = await client
       .from('councilors')
       .select('*')
-      .eq('external_id', 'VER-1449')
-      .single();
+      .order('display_name', { ascending: true });
 
-    if (selectError) {
-      console.error('[API Vereadores POST] Erro na leitura de confirmação:', selectError);
+    if (selectAllError) {
+      console.error('[API Vereadores POST] Erro na leitura de confirmação completa:', selectAllError);
       return NextResponse.json({
         success: false,
-        error: "Falha na leitura pós-persistência: " + selectError.message,
-        details: selectError
+        error: "Falha na leitura pós-persistência completa: " + selectAllError.message,
+        details: selectAllError
       }, { status: 400 });
     }
 
-    console.log('[API Vereadores POST] Leitura de confirmação realizada com sucesso:', selectData);
+    console.log(`[API Vereadores POST] Confirmação obtida. Total no banco: ${selectAllData.length}`);
 
     return NextResponse.json({
       success: true,
-      message: "Teste de persistência de 1 único vereador realizado com sucesso sob segurança total do RLS!",
-      collected: targetCouncilor,
-      upsertResult: upsertData[0],
-      confirmedRecord: selectData
+      message: "Sincronização da Legislatura 2025–2028 concluída com sucesso!",
+      stats: {
+        totalFound: officialList.length,
+        inserted: insertedCount,
+        updated: updatedCount,
+        failed: failedCount,
+        confirmedInDb: selectAllData.length
+      },
+      results,
+      confirmedRecords: selectAllData
     });
   } catch (error: any) {
     console.error('[API Vereadores POST] Erro:', error);

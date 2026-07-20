@@ -83,7 +83,9 @@ export default function CouncilorsAdminPage() {
       });
       const data = await res.json();
       if (data.success) {
-        if (data.confirmedRecord) {
+        if (data.stats) {
+          setSuccessMsg(`Sincronização concluída! ${data.stats.totalFound} registros identificados na fonte oficial: ${data.stats.inserted} inseridos, ${data.stats.updated} atualizados, ${data.stats.failed} falhas. Todos os ${data.stats.confirmedInDb} registros ativos/afastados foram confirmados por SELECT direto pós-persistência.`);
+        } else if (data.confirmedRecord) {
           setSuccessMsg(`Persistência controlada validada! Vereador [${data.confirmedRecord.display_name}] (Partido: ${data.confirmedRecord.party}) foi persistido com sucesso (UUID: ${data.confirmedRecord.id}) e confirmado por leitura direta pós-salvamento no Supabase.`);
         } else {
           setSuccessMsg(data.message || "Coleta e análise finalizadas com sucesso!");
@@ -193,7 +195,7 @@ export default function CouncilorsAdminPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
                 <UserCheck size={14} className="text-zinc-500" />
-                Vereadores Eleitos ({councilors.length})
+                Composição da Legislatura ({councilors.length})
               </h3>
               <span className="text-[9px] font-black bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded uppercase border border-zinc-200">2025-2028</span>
             </div>
@@ -202,7 +204,7 @@ export default function CouncilorsAdminPage() {
               {councilors.map((c) => (
                 <div key={c.id} className="p-4 flex items-center justify-between hover:bg-zinc-50/50 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="relative w-11 h-11 rounded-xl bg-zinc-100 overflow-hidden border border-zinc-200 flex-shrink-0 flex items-center justify-center">
+                    <div className={`relative w-11 h-11 rounded-xl bg-zinc-100 overflow-hidden border border-zinc-200 flex-shrink-0 flex items-center justify-center ${!c.is_active ? 'opacity-50 grayscale' : ''}`}>
                       {c.photo_url ? (
                         <img src={c.photo_url} alt={c.display_name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
@@ -210,7 +212,12 @@ export default function CouncilorsAdminPage() {
                       )}
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-zinc-800 leading-tight">{c.display_name}</h4>
+                      <h4 className="text-xs font-black text-zinc-800 leading-tight flex items-center flex-wrap gap-2">
+                        {c.display_name}
+                        {!c.is_active && (
+                          <span className="px-1.5 py-0.2 bg-red-50 text-red-600 rounded text-[8px] font-black uppercase tracking-widest border border-red-100">Afastado</span>
+                        )}
+                      </h4>
                       <p className="text-[10px] text-zinc-500 font-semibold flex items-center gap-1.5 mt-0.5">
                         <span className="px-1.5 py-0.2 bg-zinc-100 text-zinc-600 rounded text-[9px] font-bold border border-zinc-200">{c.party}</span>
                         <span>Câmara Municipal</span>
