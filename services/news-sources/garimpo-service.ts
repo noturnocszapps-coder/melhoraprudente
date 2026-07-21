@@ -13,17 +13,16 @@ const ai = new GoogleGenAI({
 
 export function sanitizeG1Text(text: string): string {
   if (!text) return '';
-  return text
-    // Remover breadcrumbs e chamadas promocionais comuns do G1
-    .replace(/Veja mais notícias da região no g1 Presidente Prudente e Região\./gi, '')
-    .replace(/Participe do canal do g1 Presidente Prudente e Região no WhatsApp/gi, '')
-    .replace(/Participe do grupo do g1 Presidente Prudente e Região no WhatsApp/gi, '')
-    .replace(/VÍDEOS: tudo sobre o oeste paulista/gi, '')
-    .replace(/VÍDEOS: Tudo sobre a região/gi, '')
-    .replace(/Leia mais sobre a região no g1/gi, '')
-    .replace(/veja mais/gi, '')
-    .replace(/vídeos/gi, '')
-    .replace(/#\w+/g, '') // Remover hashtags
+  let cleaned = cleanRawScrapedText(text);
+
+  return cleaned
+    .replace(/Participe do (canal|grupo|comunidade) do g1[^\n.]*/gi, '')
+    .replace(/Veja mais notícias [^\n.]*/gi, '')
+    .replace(/Leia mais [^\n.]*/gi, '')
+    .replace(/Siga o g1[^\n.]*/gi, '')
+    .replace(/VÍDEOS:\s*[^\n.]*/gi, '')
+    .replace(/Fonte original:\s*[^\n.]*/gi, '')
+    .replace(/#\w+/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -270,15 +269,12 @@ Escolha obrigatoriamente uma das seguintes categorias em maiúsculo para exibiç
 - NUNCA use "CIDADE" como fallback automático se o conteúdo pertencer claramente a Segurança/Polícia, Esportes, Saúde, Educação ou Economia. Use apenas quando se tratar de obras municipais, ações de zeladoria, trânsito ou notícias gerais que não se enquadram nas outras categorias específicas.
 
 4. NOVO TEXTO EDITORIAL SUGERIDO (ai_summary):
-Para fontes de terceiros (como G1), você deve obrigatoriamente gerar uma proposta de TEXTO EDITORIAL ORIGINAL.
-- NÃO faça paráfrase linha por linha ou simples troca de sinônimos.
-- NÃO copie a estrutura da matéria ou repita trechos inteiros.
-- Produza um texto autoral estruturado de 2 a 4 parágrafos curtos com base estrita nos fatos fornecidos (nunca invente dados, datas, nomes ou acontecimentos).
-- Estrutura sugerida para o texto (separe por quebras de linha duplas):
-  * Parágrafo 1 (Lead): O que aconteceu, onde e quando de forma direta.
-  * Parágrafo 2 (Contexto): Detalhes confirmados, andamento ou desdobramentos.
-  * Parágrafo 3 (Informações complementares): Se houver dados públicos relacionados (como alertas, orientações, etc.).
-  * Atribuição Obrigatória ao final (SEMPRE inclua uma linha com: "Fonte original: G1 Presidente Prudente e Região" se a fonte for o G1).
+Para fontes de terceiros (como G1), você deve obrigatoriamente gerar um TEXTO EDITORIAL ÚNICO, FLUIDO E COESO.
+- NUNCA comece com um resumo/lead e depois reinicie ou repita a história. O texto inteiro deve ser composto de 2 a 4 parágrafos contínuos de narrativa jornalística.
+- NUNCA repita fatos, frases ou parágrafos no mesmo texto.
+- NUNCA anexe nem misture o texto bruto original da fonte.
+- NUNCA inclua chamadas promocionais, links de redes sociais, canais de WhatsApp ou frases como 'veja mais'.
+- NUNCA inclua linhas de 'Fonte original:' ou atribuições de rodapé no campo ai_summary (a atribuição oficial em HTML é inserida automaticamente pelo sistema na publicação).
 
 5. TÍTULO EDITORIAL SUGERIDO (ai_title):
 Sugira um título atrativo, informativo, readable e direto em LETRAS MAIÚSCULAS.
@@ -519,15 +515,14 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                 : item;
 
               const cleanTitle = isG1 ? sanitizeG1Title(detailedItem.title) : detailedItem.title;
-              const cleanExcerpt = isG1 ? sanitizeG1Text(detailedItem.excerpt || '') : (detailedItem.excerpt || '');
-              const cleanContent = isG1 ? sanitizeG1Text(detailedItem.content || '') : (detailedItem.content || '');
+              const cleanContent = isG1 ? sanitizeG1Text(detailedItem.content || '') : cleanRawScrapedText(detailedItem.content || '');
 
               // D. ANÁLISE COM O GEMINI
               let aiAnalysis;
               try {
                 aiAnalysis = await this.analyzeWithGemini(
                   cleanTitle,
-                  cleanContent || cleanExcerpt || cleanTitle,
+                  cleanContent || cleanTitle,
                   source.name,
                   isG1
                 );
@@ -536,6 +531,13 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                 stats.errors.push(`Erro na IA do item "${cleanTitle}" de ${source.name}: ${geminiErr.message || geminiErr}`);
                 continue; // Conta como erro de processamento
               }
+
+              if (isG1 && aiAnalysis.ai_summary) {
+                aiAnalysis.ai_summary = sanitizeG1Text(aiAnalysis.ai_summary);
+              }
+
+              const aiContentClean = aiAnalysis.ai_summary || cleanContent;
+              const safeShortExcerpt = createCleanExcerpt(aiContentClean || cleanContent, 200);
 
               // E. FILTRAGEM EDITORIAL INTELIGENTE POR IA
               const isIgnoredType = aiAnalysis.contentType === 'recipe' || aiAnalysis.contentType === 'generic_content';
@@ -571,12 +573,12 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                 external_id: detailedItem.externalId,
                 original_url: detailedItem.url,
                 original_title: cleanTitle,
-                original_excerpt: cleanExcerpt,
+                original_excerpt: safeShortExcerpt,
                 original_image_url: detailedItem.imageUrl || null,
                 original_published_at: detailedItem.publishedAt,
                 status: candStatus,
-                ai_title: aiAnalysis.ai_title || cleanTitle.toUpperCase(),
-                ai_summary: aiAnalysis.ai_summary || cleanExcerpt,
+                ai_title: (aiAnalysis.ai_title || cleanTitle).toUpperCase(),
+                ai_summary: aiContentClean,
                 ai_category: aiAnalysis.ai_category || 'CIDADE',
                 ai_relevance_score: aiAnalysis.ai_relevance_score ?? 70,
                 ai_regional_impact_score: aiAnalysis.ai_regional_impact_score ?? 70,
@@ -590,8 +592,8 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                 ai_analysis_status: aiAnalysisStatusVal,
                 ai_analyzed_at: new Date().toISOString(),
                 ai_model: 'gemini-3.5-flash',
-                original_content: detailedItem.content || null,
-                ai_content: aiAnalysis.ai_summary || null
+                original_content: cleanContent || null,
+                ai_content: aiContentClean || null
               };
 
               if (possibleDuplicateOf) {
@@ -613,12 +615,12 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                   external_id: detailedItem.externalId,
                   original_url: detailedItem.url,
                   original_title: cleanTitle,
-                  original_excerpt: cleanExcerpt,
+                  original_excerpt: safeShortExcerpt,
                   original_image_url: detailedItem.imageUrl || null,
                   original_published_at: detailedItem.publishedAt,
                   status: candStatus,
-                  ai_title: aiAnalysis.ai_title || cleanTitle.toUpperCase(),
-                  ai_summary: aiAnalysis.ai_summary || cleanExcerpt,
+                  ai_title: (aiAnalysis.ai_title || cleanTitle).toUpperCase(),
+                  ai_summary: aiContentClean,
                   ai_category: aiAnalysis.ai_category || 'CIDADE',
                   ai_relevance_score: aiAnalysis.ai_relevance_score ?? 70,
                   ai_regional_impact_score: aiAnalysis.ai_regional_impact_score ?? 70,
@@ -764,10 +766,15 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
       const uniqueSuffix = candidate.external_id || Math.floor(Math.random() * 10000);
       const slug = `${slugBase}-${uniqueSuffix}`;
 
-      // 3. Adicionar Atribuição Obrigatória para respeitar autoria de conteúdo de terceiros
+      // 3. Adicionar Atribuição Obrigatória única em HTML para respeitar autoria de conteúdo de terceiros
+      let cleanContentBody = sanitizeG1Text(finalData.content)
+        .replace(/Fonte original:\s*G1[^\n.]*/gi, '')
+        .replace(/Fonte original:\s*[^\n.]*/gi, '')
+        .trim();
+
       const linkFonte = `<p class="mt-6 pt-4 border-t border-gray-100 text-sm text-gray-500"><strong>Fonte original:</strong> <a href="${candidate.original_url}" target="_blank" rel="noopener noreferrer" class="text-red-600 hover:underline hover:text-red-800 font-medium">${candidate.source_name}</a></p>`;
       
-      let finalContent = cleanRawScrapedText(finalData.content);
+      let finalContent = cleanRawScrapedText(cleanContentBody);
       if (!finalContent.includes(candidate.original_url)) {
         finalContent += `\n\n${linkFonte}`;
       }
@@ -926,16 +933,66 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
       console.warn(`[reprocessCandidate] Aviso ao re-raspar fonte para ${id}:`, scrapeErr);
     }
 
-    const cleanContent = cleanRawScrapedText(detailedContent);
-    const cleanTitle = sanitizeG1Title(candidate.original_title);
+    const cleanContent = isG1 ? sanitizeG1Text(detailedContent) : cleanRawScrapedText(detailedContent);
+    const cleanTitle = isG1 ? sanitizeG1Title(candidate.original_title) : candidate.original_title;
     const aiAnalysis = await this.analyzeWithGemini(cleanTitle, cleanContent, matchedSource.name, isG1);
-    const cleanExcerpt = createCleanExcerpt(aiAnalysis.ai_summary || cleanContent, 200);
+
+    if (isG1) {
+      if (aiAnalysis.ai_summary) {
+        aiAnalysis.ai_summary = sanitizeG1Text(aiAnalysis.ai_summary);
+      }
+      if (aiAnalysis.ai_title) {
+        aiAnalysis.ai_title = sanitizeG1Title(aiAnalysis.ai_title);
+      }
+    }
+
+    const aiContentClean = aiAnalysis.ai_summary || cleanContent;
+    const cleanExcerpt = createCleanExcerpt(aiContentClean, 200);
+
+    // Validação de Qualidade Estrita para G1
+    if (isG1) {
+      const validationErrors: string[] = [];
+
+      if (!cleanExcerpt || cleanExcerpt.length > 220) {
+        validationErrors.push(`Excerpt excede 220 caracteres (${cleanExcerpt ? cleanExcerpt.length : 0} chars)`);
+      }
+      if (cleanExcerpt.includes('\n')) {
+        validationErrors.push('Excerpt contém quebras de linha/múltiplos parágrafos');
+      }
+
+      const checkText = (aiContentClean || '') + ' ' + (cleanContent || '') + ' ' + cleanExcerpt;
+      const lowerCheck = checkText.toLowerCase();
+
+      if (lowerCheck.includes('whatsapp')) {
+        validationErrors.push('Conteúdo contém menção a WhatsApp');
+      }
+      if (lowerCheck.includes('assista às reportagens') || lowerCheck.includes('assista as reportagens')) {
+        validationErrors.push('Conteúdo contém "assista às reportagens"');
+      }
+      if (lowerCheck.includes('notícias no g1') || lowerCheck.includes('noticias no g1')) {
+        validationErrors.push('Conteúdo contém "notícias no g1"');
+      }
+      if (lowerCheck.includes('leia também') || lowerCheck.includes('veja também')) {
+        validationErrors.push('Conteúdo contém chamadas promocionais (LEIA TAMBÉM / VEJA TAMBÉM)');
+      }
+      if (checkText.includes(']]>')) {
+        validationErrors.push('Conteúdo contém marcador XML ]]>');
+      }
+      if (checkText.includes('📲')) {
+        validationErrors.push('Conteúdo contém emoji promocional 📲');
+      }
+
+      if (validationErrors.length > 0) {
+        console.error(`[reprocessCandidate] Validação G1 falhou para o candidato ${id}:`, validationErrors);
+        throw new Error(`Validação G1 falhou: ${validationErrors.join('; ')}`);
+      }
+    }
 
     const updatePayload: any = {
       original_content: cleanContent,
-      ai_content: aiAnalysis.ai_summary || null,
-      ai_summary: aiAnalysis.ai_summary || cleanExcerpt,
-      ai_title: aiAnalysis.ai_title || cleanTitle.toUpperCase(),
+      ai_content: aiContentClean,
+      ai_summary: aiContentClean,
+      ai_title: (aiAnalysis.ai_title || cleanTitle).toUpperCase(),
       original_excerpt: cleanExcerpt,
       ai_category: aiAnalysis.ai_category || candidate.ai_category || 'CIDADE',
       ai_relevance_score: aiAnalysis.ai_relevance_score ?? candidate.ai_relevance_score ?? 70,

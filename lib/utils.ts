@@ -119,7 +119,7 @@ export function generateSafeExcerpt(text: string, maxLength = 180): string {
   );
   
   if (lastSentenceEnd > 40) {
-    return truncated.substring(0, lastSentenceEnd + 1);
+    return truncated.substring(0, lastSentenceEnd + 1).trim();
   }
   
   // Caso contrário, corta no último espaço de palavra
@@ -132,7 +132,7 @@ export function generateSafeExcerpt(text: string, maxLength = 180): string {
   truncated = truncated.replace(/[,;:\-\s\+]+$/, '');
   truncated = truncated.replace(/\s+(e|ou|de|da|do|em|com|para|um|uma|o|a|os|as|no|na|nos|nas|por|com|sob|sob|sobre|atras|atrás|como)$/i, '');
   
-  return truncated + '...';
+  return truncated.endsWith('.') || truncated.endsWith('?') || truncated.endsWith('!') ? truncated : truncated + '.';
 }
 
 /**

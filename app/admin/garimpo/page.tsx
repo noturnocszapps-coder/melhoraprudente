@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { cn, generateSafeExcerpt } from '@/lib/utils';
+import { createCleanExcerpt } from '@/services/news-sources/cleaner';
 
 interface NewsCandidate {
   id: string;
@@ -52,6 +53,8 @@ interface NewsCandidate {
   source_id?: string | null;
   source_type?: 'official' | 'journalistic' | null;
   source_image_url?: string | null;
+  original_content?: string | null;
+  ai_content?: string | null;
   image_usage_status?: 'unknown' | 'allowed' | 'not_allowed' | 'own_image_required' | null;
   editorial_status?: 'coletada' | 'analisada' | 'em_revisao' | 'aprovada' | 'publicada' | 'rejeitada' | null;
   ai_analysis_status?: string | null;
@@ -500,10 +503,22 @@ export default function GarimpoDashboard() {
                 url: item.original_url || '',
                 error: data.error || res.statusText || 'Erro no reprocessamento'
               });
+            } else if (data.failures > 0 && Array.isArray(data.failedItems) && data.failedItems.length > 0) {
+              failuresCount += data.failures;
+              failedList.push(...data.failedItems);
             } else if (data.updatedCandidates && data.updatedCandidates.length > 0) {
+              reprocessedCount += data.updatedCandidates.length;
               const updated = data.updatedCandidates[0];
-              reprocessedCount++;
               setCandidates(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+            } else {
+              failuresCount++;
+              failedList.push({
+                id: item.id,
+                title: item.ai_title || item.original_title || item.id,
+                source: item.source_name || 'Desconhecido',
+                url: item.original_url || '',
+                error: 'Reprocessamento não retornou candidato atualizado.'
+              });
             }
           } catch (err: any) {
             failuresCount++;
@@ -515,7 +530,7 @@ export default function GarimpoDashboard() {
               error: err.message || 'Erro de conexão'
             });
           } finally {
-            currentCount++;
+            currentCount = reprocessedCount + failuresCount;
           }
         })
       );
@@ -578,19 +593,19 @@ export default function GarimpoDashboard() {
       if (data.success && data.content) {
         setScrapedContent(data.content);
         
-        // Se a chamada gerou um novo ai_summary re-analisado pelo Gemini sem truncamento,
-        // vamos usá-lo como o novo editContent para preencher o textarea!
-        if (data.ai_summary && (!hasAiSummary || data.ai_summary.length > (cand.ai_summary || '').length)) {
-          setEditContent(data.ai_summary);
+        // Se a chamada gerou um ai_summary válido da IA, usá-lo como o texto do editor principal
+        if (data.ai_summary && data.ai_summary.trim().length > 30) {
+          const cleanAiText = data.ai_summary.replace(/[\.\s]*(\.\.\.|…)+$/, '.');
+          setEditContent(cleanAiText);
           
-          // Atualiza o estado das candidatas localmente para manter sincronizado com a nova versão sem truncamento
+          // Atualiza o estado das candidatas localmente para manter sincronizado
           setCandidates(prev => prev.map(c => c.id === cand.id ? {
             ...c,
             original_content: data.content,
-            ai_content: data.ai_summary,
-            ai_summary: data.ai_summary
+            ai_content: cleanAiText,
+            ai_summary: cleanAiText
           } : c));
-        } else if (!hasAiSummary) {
+        } else if (!hasAiSummary && data.content) {
           setEditContent(data.content);
         }
         
@@ -623,10 +638,10 @@ export default function GarimpoDashboard() {
     e.preventDefault();
     if (!editingCandidate) return;
 
-    // VALIDAR SE CONTEÚDO ESTÁ TRUNCADO OU INVÁLIDO
-    const contentText = editContent.trim();
-    if (contentText.endsWith('...') || contentText.endsWith('…') || contentText.length < 150) {
-      alert('Atenção: O conteúdo da notícia está truncado (termina com reticências "...") ou está curto demais. Por favor, aguarde o carregamento do conteúdo completo ou clique em "Recarregar conteúdo completo" para obter o texto integral via IA.');
+    // VALIDAR SE CONTEÚDO ESTÁ INVÁLIDO OU CURTO DEMAIS
+    let contentText = editContent.trim().replace(/[\.\s]*(\.\.\.|…)+$/, '.');
+    if (contentText.length < 100) {
+      alert('Atenção: O conteúdo da notícia está curto demais (menos de 100 caracteres). Por favor, aguarde o carregamento do conteúdo completo ou reprocesse a notícia.');
       return;
     }
 
@@ -1483,7 +1498,7 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                     </h3>
                     
                     <p className="text-zinc-500 text-xs leading-relaxed line-clamp-2 md:line-clamp-3">
-                      {cand.ai_summary || cand.original_excerpt}
+                      {cand.original_excerpt || createCleanExcerpt(cand.ai_summary || cand.original_content || '', 200)}
                     </p>
 
                     {/* Deduplication warning if possible duplicate is flagged */}

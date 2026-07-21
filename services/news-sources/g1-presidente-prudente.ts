@@ -184,9 +184,33 @@ export class G1PresidentePrudenteSource implements NewsSource {
         }
       }
 
-      // Limpar todos os parágrafos com o cleaner
-      const rawCombined = rawParagraphs.join('\n');
-      const cleanContent = cleanRawScrapedText(rawCombined);
+      // Limpar todos os parágrafos com o cleaner e remover duplicidades (comum em leads do G1)
+      const uniqueParagraphs: string[] = [];
+      const seenText = new Set<string>();
+
+      for (const p of rawParagraphs) {
+        const cleanedP = cleanRawScrapedText(p);
+        if (!cleanedP || cleanedP.length < 15) continue;
+
+        // Normalização para detectar frases/parágrafos repetidos no topo das matérias do G1
+        const normKey = cleanedP.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+        if (normKey.length < 20) continue;
+
+        let isDuplicate = false;
+        for (const existingKey of seenText) {
+          if (existingKey === normKey || (normKey.length > 40 && existingKey.includes(normKey)) || (existingKey.length > 40 && normKey.includes(existingKey))) {
+            isDuplicate = true;
+            break;
+          }
+        }
+
+        if (!isDuplicate) {
+          seenText.add(normKey);
+          uniqueParagraphs.push(cleanedP);
+        }
+      }
+
+      const cleanContent = uniqueParagraphs.join('\n\n');
 
       return {
         ...item,

@@ -3,7 +3,8 @@ import { getAuthedSupabaseClient } from '@/lib/supabase';
 import { PrefeituraPrudenteSource } from '@/services/news-sources/prefeitura-prudente';
 import { G1PresidentePrudenteSource } from '@/services/news-sources/g1-presidente-prudente';
 import { InovaPrudenteSource } from '@/services/news-sources/inova-prudente';
-import { GarimpoService } from '@/services/news-sources/garimpo-service';
+import { GarimpoService, sanitizeG1Text } from '@/services/news-sources/garimpo-service';
+import { cleanRawScrapedText, createCleanExcerpt } from '@/services/news-sources/cleaner';
 
 /**
  * Helper unificado para validar autenticação e permissões de Admin/Editor
@@ -113,23 +114,32 @@ export async function GET(req: NextRequest) {
           originalTitle = candData?.original_title || 'Notícia';
         }
 
+        const isG1Url = url.includes('g1.globo.com');
         console.log(`[API FetchContent] Gerando análise editorial inteligente completa para a candidata: ${candidateId}`);
         const garimpoService = new GarimpoService();
+        const cleanContent = isG1Url ? sanitizeG1Text(result.content) : cleanRawScrapedText(result.content);
+        
         const aiAnalysis = await garimpoService.analyzeWithGemini(
           originalTitle,
-          result.content,
+          cleanContent,
           sourceName,
-          url.includes('g1.globo.com')
+          isG1Url
         );
 
-        finalAiSummary = aiAnalysis.ai_summary || result.excerpt || '';
+        if (isG1Url && aiAnalysis.ai_summary) {
+          aiAnalysis.ai_summary = sanitizeG1Text(aiAnalysis.ai_summary);
+        }
+
+        finalAiSummary = aiAnalysis.ai_summary || cleanContent;
+        const cleanExcerpt = createCleanExcerpt(finalAiSummary, 200);
 
         console.log(`[API FetchContent] Salvando conteúdo original e análise da IA no banco para id: ${candidateId}`);
         
         const updatePayload: any = {
-          original_content: result.content,
+          original_content: cleanContent,
           ai_content: finalAiSummary,
           ai_summary: finalAiSummary,
+          original_excerpt: cleanExcerpt,
           updated_at: new Date().toISOString()
         };
 
