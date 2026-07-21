@@ -15,10 +15,14 @@ export class PrefeituraPrudenteSource implements NewsSource {
       const parts = dateStr.trim().split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1; // Mês é 0-indexado no JS Date
+        const month = parseInt(parts[1], 10);
         const year = parseInt(parts[2], 10);
         
-        const date = new Date(year, month, day, 12, 0, 0); // Define meio-dia para evitar variações de fuso horário
+        // Formatar como YYYY-MM-DD para consistência com offset de America/Sao_Paulo (-03:00)
+        const formattedMonth = String(month).padStart(2, '0');
+        const formattedDay = String(day).padStart(2, '0');
+        const dateISO = `${year}-${formattedMonth}-${formattedDay}T12:00:00-03:00`;
+        const date = new Date(dateISO);
         if (!isNaN(date.getTime())) {
           return date.toISOString();
         }

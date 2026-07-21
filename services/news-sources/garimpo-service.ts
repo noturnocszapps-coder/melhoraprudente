@@ -217,7 +217,7 @@ export class GarimpoService {
   /**
    * Executa a análise inteligente do Gemini para o candidato a notícia
    */
-  private async analyzeWithGemini(title: string, content: string, sourceName: string, isG1: boolean) {
+  public async analyzeWithGemini(title: string, content: string, sourceName: string, isG1: boolean) {
     const defaultFallback = {
       contentType: "regional_news",
       isLocallyRelevant: true,
@@ -588,7 +588,9 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                 editorial_status: editorialStatusVal,
                 ai_analysis_status: aiAnalysisStatusVal,
                 ai_analyzed_at: new Date().toISOString(),
-                ai_model: 'gemini-3.5-flash'
+                ai_model: 'gemini-3.5-flash',
+                original_content: detailedItem.content || null,
+                ai_content: aiAnalysis.ai_summary || null
               };
 
               if (possibleDuplicateOf) {

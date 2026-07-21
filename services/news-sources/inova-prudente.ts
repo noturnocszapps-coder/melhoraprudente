@@ -15,10 +15,14 @@ export class InovaPrudenteSource implements NewsSource {
       const parts = dateStr.trim().split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1; // Mês é 0-indexado no JS Date
+        const month = parseInt(parts[1], 10);
         const year = parseInt(parts[2], 10);
         
-        const date = new Date(year, month, day, 12, 0, 0); // Define meio-dia para evitar variações de fuso horário
+        // Formatar como YYYY-MM-DD para consistência com offset de America/Sao_Paulo (-03:00)
+        const formattedMonth = String(month).padStart(2, '0');
+        const formattedDay = String(day).padStart(2, '0');
+        const dateISO = `${year}-${formattedMonth}-${formattedDay}T12:00:00-03:00`;
+        const date = new Date(dateISO);
         if (isNaN(date.getTime())) {
           return 'unknown';
         }
@@ -111,6 +115,85 @@ export class InovaPrudenteSource implements NewsSource {
   }
 
   public async fetchItemDetails(item: ScrapedNewsItem): Promise<ScrapedNewsItem> {
-    return item;
+    try {
+      console.log(`[Garimpo Inova] Buscando detalhes de notícia Inova: ${item.url}`);
+      const response = await fetch(item.url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 MelhoraPrudenteGarimpoBot/1.0',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        },
+        signal: AbortSignal.timeout(10000) // 10s timeout
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP erro ao buscar detalhes Inova! Status: ${response.status}`);
+      }
+
+      const html = await response.text();
+
+      // Find box-txt-interna element
+      const matchTxt = html.match(/<div[^>]*class=["'][^"']*box-txt-interna[^"']*["'][^>]*>([\s\S]*?)<\/div>\s*<\/div>/i) ||
+                       html.match(/<div[^>]*class=["'][^"']*box-txt-interna[^"']*["'][^>]*>([\s\S]*?)<\/div>/i) ||
+                       html.match(/<div[^>]*class=["'][^"']*post-desc[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+      
+      const paragraphs: string[] = [];
+      if (matchTxt) {
+        const textRaw = matchTxt[1];
+        const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+        let pMatch;
+        while ((pMatch = pRegex.exec(textRaw)) !== null) {
+          let pText = pMatch[1].replace(/<[^>]+>/g, '').trim();
+          pText = decodeHTMLEntities(pText);
+          if (pText) {
+            paragraphs.push(pText);
+          }
+        }
+      }
+
+      // If no paragraph found under box-txt-interna, fallback to any <p> tags under single-post or post-desc
+      if (paragraphs.length === 0) {
+        const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+        let pMatch;
+        while ((pMatch = pRegex.exec(html)) !== null) {
+          let pText = pMatch[1].replace(/<[^>]+>/g, '').trim();
+          pText = decodeHTMLEntities(pText);
+          if (pText && pText.length > 30 && !pText.includes('Inscreva-se') && !pText.includes('Assinar') && !pText.includes('Copyright')) {
+            paragraphs.push(pText);
+          }
+        }
+      }
+
+      const content = paragraphs.join('\n\n');
+
+      return {
+        ...item,
+        content: content || item.excerpt || item.title
+      };
+    } catch (error) {
+      console.error(`[Garimpo Inova] Erro ao buscar detalhes da notícia Inova ${item.externalId}:`, error);
+      return item;
+    }
   }
+}
+
+function decodeHTMLEntities(text: string): string {
+  const entities: { [key: string]: string } = {
+    '&aacute;': 'á', '&Aacute;': 'Á', '&acirc;': 'â', '&Acirc;': 'Â', '&agrave;': 'à', '&Agrave;': 'À', '&atilde;': 'ã', '&Atilde;': 'Ã',
+    '&éacute;': 'é', '&eacute;': 'é', '&Eacute;': 'É', '&ecirc;': 'ê', '&Ecirc;': 'Ê', '&egrave;': 'è', '&Egrave;': 'È',
+    '&iacute;': 'í', '&Iacute;': 'Í', '&icirc;': 'î', '&Icirc;': 'Î', '&igrave;': 'ì', '&Igrave;': 'Ì',
+    '&oacute;': 'ó', '&Oacute;': 'Ó', '&ocirc;': 'ô', '&Ocirc;': 'Ô', '&ograve;': 'ò', '&Ograve;': 'Ò', '&otilde;': 'õ', '&Otilde;': 'Õ',
+    '&uacute;': 'ú', '&Uacute;': 'Ú', '&ucirc;': 'û', '&Ucirc;': 'Û', '&ugrave;': 'ù', '&Ugrave;': 'Ù',
+    '&ccedil;': 'ç', '&Ccedil;': 'Ç', '&ntilde;': 'ñ', '&Ntilde;': 'Ñ',
+    '&nbsp;': ' ', '&quot;': '"', '&amp;': '&', '&lt;': '<', '&gt;': '>',
+    '&ldquo;': '"', '&rdquo;': '"', '&lsquo;': "'", '&rsquo;': "'", '&ndash;': '-', '&mdash;': '—',
+    '&ordm;': 'º', '&ordf;': 'ª'
+  };
+  return text.replace(/&[a-zA-Z0-9#]+;/g, (match) => {
+    if (entities[match]) return entities[match];
+    if (match.startsWith('&#')) {
+      const code = parseInt(match.substring(2, match.length - 1), 10);
+      if (!isNaN(code)) return String.fromCharCode(code);
+    }
+    return match;
+  });
 }

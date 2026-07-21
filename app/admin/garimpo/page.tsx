@@ -290,7 +290,7 @@ export default function GarimpoDashboard() {
         const stats = data.stats;
         setScanResult(stats);
         setScanDetails({
-          sourceName: 'Prefeitura, G1 e Inova - Multi-fontes',
+          sourceName: 'Prefeitura, G1 Prudente e Inova Prudente - Multi-fontes',
           scraped: stats.scraped,
           newCandidates: stats.newCandidates,
           saved: stats.saved,
@@ -414,7 +414,8 @@ export default function GarimpoDashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
-      const res = await fetch(`/api/admin/garimpo/fetch-content?url=${encodeURIComponent(cand.original_url)}`, {
+      // Passar a URL e também o candidate_id para que a API possa re-executar a IA se necessário e persistir no banco
+      const res = await fetch(`/api/admin/garimpo/fetch-content?url=${encodeURIComponent(cand.original_url)}&candidate_id=${cand.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -425,8 +426,19 @@ export default function GarimpoDashboard() {
       if (data.success && data.content) {
         setScrapedContent(data.content);
         
-        // APENAS substituir o editContent se NÃO houver um resumo de IA estruturado para preservar
-        if (!hasAiSummary) {
+        // Se a chamada gerou um novo ai_summary re-analisado pelo Gemini sem truncamento,
+        // vamos usá-lo como o novo editContent para preencher o textarea!
+        if (data.ai_summary && (!hasAiSummary || data.ai_summary.length > (cand.ai_summary || '').length)) {
+          setEditContent(data.ai_summary);
+          
+          // Atualiza o estado das candidatas localmente para manter sincronizado com a nova versão sem truncamento
+          setCandidates(prev => prev.map(c => c.id === cand.id ? {
+            ...c,
+            original_content: data.content,
+            ai_content: data.ai_summary,
+            ai_summary: data.ai_summary
+          } : c));
+        } else if (!hasAiSummary) {
           setEditContent(data.content);
         }
         
@@ -458,6 +470,13 @@ export default function GarimpoDashboard() {
   const handleApproveAndPublish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCandidate) return;
+
+    // VALIDAR SE CONTEÚDO ESTÁ TRUNCADO OU INVÁLIDO
+    const contentText = editContent.trim();
+    if (contentText.endsWith('...') || contentText.endsWith('…') || contentText.length < 150) {
+      alert('Atenção: O conteúdo da notícia está truncado (termina com reticências "...") ou está curto demais. Por favor, aguarde o carregamento do conteúdo completo ou clique em "Recarregar conteúdo completo" para obter o texto integral via IA.');
+      return;
+    }
 
     setActionId(editingCandidate.id);
     setDiagnostic(null);
@@ -583,7 +602,13 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
 
     // Source filtering
     if (sourceFilter !== 'all') {
-      const actualSourceId = cand.source_id || (cand.source_name.toLowerCase().includes('prefeitura') ? 'prefeitura-prudente' : 'g1-presidente-prudente');
+      const actualSourceId = cand.source_id || (
+        cand.source_name.toLowerCase().includes('prefeitura') 
+          ? 'prefeitura-prudente' 
+          : cand.source_name.toLowerCase().includes('inova')
+          ? 'inova-prudente'
+          : 'g1-presidente-prudente'
+      );
       if (actualSourceId !== sourceFilter) return false;
     }
 
@@ -1179,6 +1204,19 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Subtle scanning progress indicator */}
+      {isScanning && candidates.length > 0 && (
+        <div className="bg-zinc-50 border border-zinc-150 p-4 rounded-3xl space-y-2 animate-pulse">
+          <div className="w-full bg-zinc-200 h-1.5 rounded-full overflow-hidden">
+            <div className="bg-red-600 h-full w-2/5 rounded-full animate-bounce" />
+          </div>
+          <p className="text-[10px] text-zinc-500 font-bold flex items-center gap-1.5 justify-center uppercase tracking-wider select-none">
+            <RefreshCw size={11} className="animate-spin text-red-600" />
+            Varredura multi-fontes em execução em segundo plano... Mantendo notícias atuais visíveis.
+          </p>
         </div>
       )}
 

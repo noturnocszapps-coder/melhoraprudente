@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthedSupabaseClient } from '@/lib/supabase';
 import { PrefeituraPrudenteSource } from '@/services/news-sources/prefeitura-prudente';
+import { G1PresidentePrudenteSource } from '@/services/news-sources/g1-presidente-prudente';
+import { InovaPrudenteSource } from '@/services/news-sources/inova-prudente';
+import { GarimpoService } from '@/services/news-sources/garimpo-service';
 
 /**
  * Helper unificado para validar autenticação e permissões de Admin/Editor
@@ -53,31 +56,40 @@ async function validateAuth(req: NextRequest) {
 }
 
 /**
- * GET: Obtém o conteúdo completo de uma notícia original na prefeitura
+ * GET: Obtém o conteúdo completo de uma notícia original a partir da URL (Prefeitura, G1 ou Inova)
  */
 export async function GET(req: NextRequest) {
   try {
-    const { errorResponse } = await validateAuth(req);
+    const { errorResponse, client } = await validateAuth(req);
     if (errorResponse) return errorResponse;
 
     const { searchParams } = new URL(req.url);
     const url = searchParams.get('url');
+    const candidateId = searchParams.get('candidate_id');
 
     if (!url) {
       return NextResponse.json({ error: "Parâmetro 'url' é obrigatório." }, { status: 400 });
     }
 
-    // Validar se é uma URL permitida do portal da prefeitura
-    if (!url.startsWith('https://presidenteprudente.sp.gov.br/site/noticia/')) {
-      return NextResponse.json({ error: "URL inválida ou domínio não permitido." }, { status: 400 });
-    }
-
     console.log(`[API FetchContent] Buscando conteúdo para URL: ${url}`);
     
-    // Instanciar o scraper
-    const scraper = new PrefeituraPrudenteSource();
+    // Instanciar o scraper apropriado
+    let scraper;
+    let sourceName = 'Outro';
+    if (url.startsWith('https://presidenteprudente.sp.gov.br/')) {
+      scraper = new PrefeituraPrudenteSource();
+      sourceName = 'Prefeitura Municipal';
+    } else if (url.includes('g1.globo.com')) {
+      scraper = new G1PresidentePrudenteSource();
+      sourceName = 'G1 Presidente Prudente';
+    } else if (url.includes('inovaprudente.com.br')) {
+      scraper = new InovaPrudenteSource();
+      sourceName = 'Inova Prudente';
+    } else {
+      return NextResponse.json({ error: "Portal ou domínio de origem não suportado pelo Garimpo por IA." }, { status: 400 });
+    }
     
-    // Obter detalhes passando um objeto ScrapedNewsItem mockado mínimo
+    // Obter detalhes passando um objeto ScrapedNewsItem mínimo
     const result = await scraper.fetchItemDetails({
       externalId: url.split('/').pop() || 'temp',
       title: 'Original',
@@ -85,12 +97,70 @@ export async function GET(req: NextRequest) {
       publishedAt: new Date().toISOString()
     });
 
+    let finalAiSummary = result.excerpt || '';
+
+    // Se um ID de candidata foi passado, vamos atualizar no banco e gerar análise da IA completa
+    if (candidateId && result.content && client) {
+      try {
+        // Obter título original real da candidata se "Original" for retornado como título fictício
+        let originalTitle = result.title && result.title !== 'Original' ? result.title : '';
+        if (!originalTitle) {
+          const { data: candData } = await client
+            .from('news_candidates')
+            .select('original_title')
+            .eq('id', candidateId)
+            .single();
+          originalTitle = candData?.original_title || 'Notícia';
+        }
+
+        console.log(`[API FetchContent] Gerando análise editorial inteligente completa para a candidata: ${candidateId}`);
+        const garimpoService = new GarimpoService();
+        const aiAnalysis = await garimpoService.analyzeWithGemini(
+          originalTitle,
+          result.content,
+          sourceName,
+          url.includes('g1.globo.com')
+        );
+
+        finalAiSummary = aiAnalysis.ai_summary || result.excerpt || '';
+
+        console.log(`[API FetchContent] Salvando conteúdo original e análise da IA no banco para id: ${candidateId}`);
+        
+        const updatePayload: any = {
+          original_content: result.content,
+          ai_content: finalAiSummary,
+          ai_summary: finalAiSummary,
+          updated_at: new Date().toISOString()
+        };
+
+        const { error: dbError } = await client
+          .from('news_candidates')
+          .update(updatePayload)
+          .eq('id', candidateId);
+
+        if (dbError) {
+          console.warn('[API FetchContent] Erro ao atualizar novas colunas (tentando fallback tradicional):', dbError);
+          // Fallback seguro caso as colunas original_content ou ai_content ainda não estejam presentes
+          await client
+            .from('news_candidates')
+            .update({
+              ai_summary: finalAiSummary,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', candidateId);
+        }
+      } catch (err) {
+        console.error('[API FetchContent] Erro ao gerar IA ou salvar no banco:', err);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       title: result.title,
       content: result.content,
       imageUrl: result.imageUrl || null,
-      excerpt: result.excerpt
+      excerpt: result.excerpt,
+      ai_summary: finalAiSummary
     });
   } catch (error: any) {
     console.error('[API FetchContent GET] Erro:', error);
