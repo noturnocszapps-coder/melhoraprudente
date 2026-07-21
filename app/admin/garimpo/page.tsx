@@ -21,7 +21,8 @@ import {
   Flame,
   Globe,
   Plus,
-  BookOpen
+  BookOpen,
+  RotateCcw
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { cn, generateSafeExcerpt } from '@/lib/utils';
@@ -176,6 +177,21 @@ export default function GarimpoDashboard() {
   const [publishStatus, setPublishStatus] = useState<'published' | 'draft'>('published');
   const [loadingFullContent, setLoadingFullContent] = useState(false);
   const [scrapedContent, setScrapedContent] = useState('');
+
+  // Reprocessing states
+  const [reprocessingId, setReprocessingId] = useState<string | null>(null);
+  const [confirmMassModalOpen, setConfirmMassModalOpen] = useState(false);
+  const [singleReprocessConfirmCand, setSingleReprocessConfirmCand] = useState<NewsCandidate | null>(null);
+  const [reprocessBatchState, setReprocessBatchState] = useState<{
+    isOpen: boolean;
+    total: number;
+    current: number;
+    reprocessed: number;
+    failures: number;
+    failedItems: Array<{ id: string; title: string; source: string; url: string; error: string }>;
+    isFinished: boolean;
+    isLoading: boolean;
+  } | null>(null);
 
   // Load candidates list
   const loadCandidates = async (isBackground = false) => {
@@ -379,6 +395,142 @@ export default function GarimpoDashboard() {
       alert('Erro de conexão: ' + err.message);
     } finally {
       setActionId(null);
+    }
+  };
+
+  // Reprocessar notícia individualmente (Abre modal de confirmação)
+  const handleReprocessSingle = (cand: NewsCandidate) => {
+    setSingleReprocessConfirmCand(cand);
+  };
+
+  // Executar reprocessamento individual
+  const executeSingleReprocess = async (cand: NewsCandidate) => {
+    setReprocessingId(cand.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const res = await fetch('/api/admin/garimpo/reprocess', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ candidate_id: cand.id })
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        alert('Erro ao reprocessar notícia: ' + (data.error || res.statusText));
+      } else if (data.updatedCandidates && data.updatedCandidates.length > 0) {
+        const updated = data.updatedCandidates[0];
+        setCandidates(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+        if (editingCandidate?.id === cand.id) {
+          setEditingCandidate(updated);
+          setEditTitle((updated.ai_title || updated.original_title || '').toUpperCase());
+          setEditExcerpt(updated.ai_summary || updated.original_excerpt || '');
+          setEditContent(updated.original_content || updated.ai_content || '');
+        }
+      }
+    } catch (err: any) {
+      alert('Erro ao reprocessar notícia: ' + err.message);
+    } finally {
+      setReprocessingId(null);
+    }
+  };
+
+  // Clique do botão "Reprocessar Pendentes em Massa" -> Abre modal de confirmação
+  const handleReprocessAllPending = () => {
+    const pendingItems = candidates.filter(c => c.status === 'pending');
+    if (pendingItems.length === 0) {
+      alert('Não há notícias pendentes na Fila Editorial para reprocessar.');
+      return;
+    }
+    setConfirmMassModalOpen(true);
+  };
+
+  // Inicia execução em massa coordenada pelo frontend (evita timeouts HTTP e dá progresso real)
+  const startBatchReprocessing = async () => {
+    const pendingItems = candidates.filter(c => c.status === 'pending');
+    if (pendingItems.length === 0) return;
+
+    setReprocessBatchState({
+      isOpen: true,
+      total: pendingItems.length,
+      current: 0,
+      reprocessed: 0,
+      failures: 0,
+      failedItems: [],
+      isFinished: false,
+      isLoading: true
+    });
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    let currentCount = 0;
+    let reprocessedCount = 0;
+    let failuresCount = 0;
+    const failedList: Array<{ id: string; title: string; source: string; url: string; error: string }> = [];
+
+    // Processa itens em pequenos lotes seguros de 2 requisições paralelas
+    const BATCH_SIZE = 2;
+    for (let i = 0; i < pendingItems.length; i += BATCH_SIZE) {
+      const chunk = pendingItems.slice(i, i + BATCH_SIZE);
+
+      await Promise.all(
+        chunk.map(async (item) => {
+          try {
+            const res = await fetch('/api/admin/garimpo/reprocess', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ candidate_id: item.id })
+            });
+
+            const data = await res.json();
+            if (!res.ok || data.error) {
+              failuresCount++;
+              failedList.push({
+                id: item.id,
+                title: item.ai_title || item.original_title || item.id,
+                source: item.source_name || 'Desconhecido',
+                url: item.original_url || '',
+                error: data.error || res.statusText || 'Erro no reprocessamento'
+              });
+            } else if (data.updatedCandidates && data.updatedCandidates.length > 0) {
+              const updated = data.updatedCandidates[0];
+              reprocessedCount++;
+              setCandidates(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+            }
+          } catch (err: any) {
+            failuresCount++;
+            failedList.push({
+              id: item.id,
+              title: item.ai_title || item.original_title || item.id,
+              source: item.source_name || 'Desconhecido',
+              url: item.original_url || '',
+              error: err.message || 'Erro de conexão'
+            });
+          } finally {
+            currentCount++;
+          }
+        })
+      );
+
+      // Atualiza progresso e métricas na interface a cada sub-lote concluído
+      setReprocessBatchState({
+        isOpen: true,
+        total: pendingItems.length,
+        current: currentCount,
+        reprocessed: reprocessedCount,
+        failures: failuresCount,
+        failedItems: [...failedList],
+        isFinished: currentCount >= pendingItems.length,
+        isLoading: currentCount < pendingItems.length
+      });
     }
   };
 
@@ -749,9 +901,10 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
           
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
+              type="button"
               onClick={handleScan}
-              disabled={isScanning}
-              className="bg-red-600 text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-red-700 disabled:bg-zinc-700 disabled:text-zinc-400 transition-all select-none"
+              disabled={isScanning || (reprocessBatchState?.isLoading ?? false)}
+              className="bg-red-600 text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-red-700 disabled:bg-zinc-700 disabled:text-zinc-400 transition-all select-none shadow-sm cursor-pointer disabled:cursor-not-allowed"
             >
               {isScanning ? (
                 <>
@@ -764,6 +917,19 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                   Buscar Novas Notícias
                 </>
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleReprocessAllPending}
+              disabled={isScanning || (reprocessBatchState?.isLoading ?? false) || candidates.filter(c => c.status === 'pending').length === 0}
+              className="bg-zinc-800 border border-zinc-700 text-zinc-100 hover:bg-zinc-700 hover:text-white disabled:bg-zinc-800/50 disabled:text-zinc-500 disabled:border-zinc-800 px-5 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all select-none shadow-sm cursor-pointer disabled:cursor-not-allowed"
+              title="Reprocessar notícias pendentes com o pipeline novo de extração e síntese"
+            >
+              <RotateCcw size={16} className={cn(reprocessBatchState?.isLoading && "animate-spin text-red-400")} />
+              {reprocessBatchState?.isLoading
+                ? `Reprocessando (${reprocessBatchState.current}/${reprocessBatchState.total})...`
+                : `Reprocessar Pendentes em Massa (${candidates.filter(c => c.status === 'pending').length})`}
             </button>
           </div>
         </div>
@@ -1438,22 +1604,47 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                     {cand.status === 'pending' && (
                       <>
                         <button
+                          type="button"
                           onClick={() => handleReject(cand.id)}
-                          disabled={actionId !== null}
-                          className="bg-white border border-zinc-200 text-zinc-500 hover:text-zinc-800 hover:border-zinc-300 p-2 rounded-xl transition-all select-none"
+                          disabled={actionId !== null || reprocessingId !== null}
+                          className="bg-white border border-zinc-200 text-zinc-500 hover:text-zinc-800 hover:border-zinc-300 p-2 rounded-xl transition-all select-none cursor-pointer disabled:cursor-not-allowed"
                           title="Rejeitar"
                         >
                           <ThumbsDown size={14} />
                         </button>
                         <button
+                          type="button"
+                          onClick={() => handleReprocessSingle(cand)}
+                          disabled={actionId !== null || reprocessingId !== null}
+                          className="bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 text-zinc-700 hover:text-zinc-900 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all select-none cursor-pointer disabled:cursor-not-allowed"
+                          title="Reprocessar notícia usando o pipeline atualizado de extração e IA"
+                        >
+                          <RotateCcw size={13} className={cn(reprocessingId === cand.id && "animate-spin text-red-600")} />
+                          <span className="hidden sm:inline">{reprocessingId === cand.id ? 'Reprocessando...' : 'Reprocessar'}</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => startEditing(cand)}
-                          disabled={actionId !== null}
-                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-sm select-none"
+                          disabled={actionId !== null || reprocessingId !== null}
+                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-sm select-none cursor-pointer disabled:cursor-not-allowed"
                         >
                           <Edit size={12} />
                           Revisar & Publicar
                         </button>
                       </>
+                    )}
+
+                    {cand.status !== 'pending' && (
+                      <button
+                        type="button"
+                        onClick={() => handleReprocessSingle(cand)}
+                        disabled={actionId !== null || reprocessingId !== null}
+                        className="bg-white border border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 select-none cursor-pointer disabled:cursor-not-allowed"
+                        title="Reprocessar dados da fonte original no banco da fila (requer confirmação)"
+                      >
+                        <RotateCcw size={13} className={cn(reprocessingId === cand.id && "animate-spin text-red-600")} />
+                        <span className="hidden sm:inline">{reprocessingId === cand.id ? 'Reprocessando...' : 'Reprocessar Fonte'}</span>
+                      </button>
                     )}
 
                     <a
@@ -1507,6 +1698,203 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal de Confirmação Interno para Reprocessamento em Massa */}
+      {confirmMassModalOpen && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-zinc-900 border border-zinc-800 text-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-600/20 text-red-500 rounded-2xl shrink-0">
+                <RotateCcw size={24} />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-black tracking-tight uppercase">
+                  Reprocessar {candidates.filter(c => c.status === 'pending').length} Notícias Pendentes?
+                </h3>
+                <p className="text-xs text-zinc-400 leading-relaxed pt-1">
+                  As notícias serão novamente coletadas das fontes e processadas pelo pipeline atualizado de extração e IA. Nenhuma notícia será publicada automaticamente.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-zinc-800/80">
+              <button
+                type="button"
+                onClick={() => setConfirmMassModalOpen(false)}
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmMassModalOpen(false);
+                  startBatchReprocessing();
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw size={14} />
+                Iniciar Reprocessamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação Interno para Reprocessamento Individual */}
+      {singleReprocessConfirmCand && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-zinc-900 border border-zinc-800 text-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-600/20 text-red-500 rounded-2xl shrink-0">
+                <RotateCcw size={24} />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-black tracking-tight uppercase">
+                  Reprocessar Notícia?
+                </h3>
+                <p className="text-xs text-zinc-300 font-bold truncate max-w-xs">
+                  {singleReprocessConfirmCand.ai_title || singleReprocessConfirmCand.original_title}
+                </p>
+                <p className="text-xs text-zinc-400 leading-relaxed pt-1">
+                  {singleReprocessConfirmCand.status === 'published' || singleReprocessConfirmCand.status === 'approved'
+                    ? 'Esta notícia já foi aprovada/publicada. Deseja reprocessar a Fila Editorial a partir da fonte original? O conteúdo no portal NÃO será alterado.'
+                    : 'O scraper re-extrairá o texto completo da fonte e a IA gerará um novo resumo. O status continuará pendente.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-zinc-800/80">
+              <button
+                type="button"
+                onClick={() => setSingleReprocessConfirmCand(null)}
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const cand = singleReprocessConfirmCand;
+                  setSingleReprocessConfirmCand(null);
+                  executeSingleReprocess(cand);
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw size={14} />
+                Confirmar Reprocessamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Reprocessamento em Massa com Relatório */}
+      {reprocessBatchState?.isOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-zinc-900 border border-zinc-800 text-white rounded-3xl max-w-xl w-full p-6 md:p-8 space-y-6 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-red-600/20 text-red-500 rounded-2xl">
+                  <RotateCcw size={22} className={cn(reprocessBatchState.isLoading && "animate-spin")} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black tracking-tight uppercase">
+                    {reprocessBatchState.isFinished ? 'Reprocessamento Concluído' : 'Reprocessando Fila em Massa'}
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    {reprocessBatchState.isFinished
+                      ? 'Processamento em lotes finalizado com o novo pipeline'
+                      : 'Executando re-raspagem e re-síntese por IA em lotes controlados...'}
+                  </p>
+                </div>
+              </div>
+              {reprocessBatchState.isFinished && (
+                <button
+                  onClick={() => setReprocessBatchState(null)}
+                  className="p-2 text-zinc-400 hover:text-white rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </div>
+
+            {/* Barra de Progresso */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                <span>Progresso das Notícias</span>
+                <span>{reprocessBatchState.current} / {reprocessBatchState.total}</span>
+              </div>
+              <div className="w-full bg-zinc-800 h-2.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-red-600 h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${reprocessBatchState.total > 0 ? (reprocessBatchState.current / reprocessBatchState.total) * 100 : 0}%`
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Métricas do Processamento */}
+            <div className="grid grid-cols-3 gap-3 font-mono">
+              <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 text-center">
+                <span className="text-[10px] text-zinc-500 font-black uppercase tracking-wider block">Total Analisado</span>
+                <span className="text-xl font-bold text-white mt-1 block">{reprocessBatchState.total}</span>
+              </div>
+              <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 text-center">
+                <span className="text-[10px] text-zinc-500 font-black uppercase tracking-wider block">Com Sucesso</span>
+                <span className="text-xl font-bold text-emerald-400 mt-1 block">{reprocessBatchState.reprocessed}</span>
+              </div>
+              <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 text-center">
+                <span className="text-[10px] text-zinc-500 font-black uppercase tracking-wider block">Falhas / Erros</span>
+                <span className={`text-xl font-bold mt-1 block ${reprocessBatchState.failures > 0 ? 'text-red-400' : 'text-zinc-400'}`}>
+                  {reprocessBatchState.failures}
+                </span>
+              </div>
+            </div>
+
+            {/* Lista detalhada de falhas se houver */}
+            {reprocessBatchState.failedItems.length > 0 && (
+              <div className="bg-red-950/40 border border-red-900/50 rounded-2xl p-4 space-y-3 max-h-48 overflow-y-auto">
+                <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <AlertTriangle size={14} /> Relatório de Falhas ({reprocessBatchState.failedItems.length})
+                </h4>
+                <div className="space-y-2 text-xs font-mono">
+                  {reprocessBatchState.failedItems.map((item, idx) => (
+                    <div key={idx} className="bg-zinc-950/60 p-2.5 rounded-xl border border-red-900/30 space-y-1">
+                      <div className="font-bold text-zinc-200 truncate">{item.title}</div>
+                      <div className="text-[10px] text-zinc-400 flex items-center justify-between">
+                        <span>Fonte: {item.source}</span>
+                        {item.url && (
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-red-400 hover:underline">
+                            Ver fonte
+                          </a>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-red-400 leading-tight">Erro: {item.error}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Ação final */}
+            <div className="pt-2 flex justify-end">
+              {reprocessBatchState.isFinished ? (
+                <button
+                  onClick={() => setReprocessBatchState(null)}
+                  className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md"
+                >
+                  Concluir e Fechar Relatório
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-zinc-400 font-bold uppercase tracking-wider">
+                  <RefreshCw size={14} className="animate-spin text-red-500" />
+                  Reprocessando em lotes seguros... Não feche a janela.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

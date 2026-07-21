@@ -4,6 +4,7 @@ import { G1PresidentePrudenteSource } from './g1-presidente-prudente';
 import { InovaPrudenteSource } from './inova-prudente';
 import { NewsSource, ScrapedNewsItem } from './types';
 import { GoogleGenAI, Type, Schema } from '@google/genai';
+import { cleanRawScrapedText, createCleanExcerpt } from './cleaner';
 
 // Initialize Gemini client server-side safely
 const ai = new GoogleGenAI({
@@ -766,10 +767,13 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
       // 3. Adicionar Atribuição Obrigatória para respeitar autoria de conteúdo de terceiros
       const linkFonte = `<p class="mt-6 pt-4 border-t border-gray-100 text-sm text-gray-500"><strong>Fonte original:</strong> <a href="${candidate.original_url}" target="_blank" rel="noopener noreferrer" class="text-red-600 hover:underline hover:text-red-800 font-medium">${candidate.source_name}</a></p>`;
       
-      let finalContent = finalData.content;
+      let finalContent = cleanRawScrapedText(finalData.content);
       if (!finalContent.includes(candidate.original_url)) {
         finalContent += `\n\n${linkFonte}`;
       }
+
+      // Garantir que o excerpt seja estritamente um resumo limpo e curto
+      const cleanExcerpt = createCleanExcerpt(finalData.excerpt || finalContent, 200);
 
       // 4. Copiar para a tabela oficial 'news'
       const { data: newsData, error: newsError } = await supabaseClient
@@ -778,7 +782,7 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
           title: finalData.title.toUpperCase(), // Garantir título em maiúsculo
           slug,
           content: finalContent,
-          excerpt: finalData.excerpt,
+          excerpt: cleanExcerpt,
           cover_image: finalData.cover_image || candidate.original_image_url || null,
           category: finalData.category,
           status: finalData.status, // published ou draft
@@ -787,12 +791,12 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
           region: 'SP',
           is_breaking: false,
           ai_classification: 'Garimpo IA',
-          ai_summary: candidate.ai_summary || finalData.excerpt,
+          ai_summary: candidate.ai_summary || cleanExcerpt,
           ai_relevance_score: candidate.ai_relevance_score || 50,
           ai_viral_potential_score: candidate.ai_viral_potential_score || 50,
           ai_regional_impact_score: candidate.ai_regional_impact_score || 50,
           ai_seo_title: finalData.title.substring(0, 55),
-          ai_seo_description: finalData.excerpt.substring(0, 150)
+          ai_seo_description: cleanExcerpt.substring(0, 150)
         })
         .select()
         .single();
@@ -853,6 +857,112 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
       console.error('[GarimpoService] Erro no processo de aprovação/publicação:', err);
       throw err;
     }
+  }
+
+  /**
+   * Reprocessa individualmente um candidato a notícia usando o pipeline atualizado:
+   * 1. Recupera o candidato no banco de dados
+   * 2. Re-executa o scraper da fonte correspondente
+   * 3. Limpa o conteúdo original recuperado com cleanRawScrapedText
+   * 4. Submete o texto limpo ao Gemini AI para re-síntese
+   * 5. Gera um excerpt limpo e curto
+   * 6. Atualiza o registro em news_candidates sem alterar o status do candidato
+   */
+  public async reprocessCandidate(id: string, supabaseClient = supabase) {
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase não configurado');
+    }
+
+    const { data: candidate, error: fetchErr } = await supabaseClient
+      .from('news_candidates')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !candidate) {
+      throw new Error(`Candidato não encontrado: ${id}`);
+    }
+
+    const url = candidate.original_url || '';
+    const sourceName = candidate.source_name || '';
+    let matchedSource = this.sources.find(s => url.includes(s.url) || sourceName.toLowerCase().includes(s.name.toLowerCase()));
+
+    if (!matchedSource) {
+      if (url.includes('presidenteprudente.sp.gov.br')) {
+        matchedSource = this.sources.find(s => s.id === 'prefeitura-presidente-prudente');
+      } else if (url.includes('globo.com') || url.includes('g1')) {
+        matchedSource = this.sources.find(s => s.id === 'g1-presidente-prudente');
+      } else if (url.includes('inovaprudente')) {
+        matchedSource = this.sources.find(s => s.id === 'inova-prudente');
+      }
+    }
+
+    if (!matchedSource) {
+      matchedSource = this.sources[1]; // Fallback para G1
+    }
+
+    const isG1 = matchedSource.id === 'g1-presidente-prudente';
+
+    let detailedContent = candidate.original_content || '';
+    let imageUrl = candidate.original_image_url || '';
+
+    try {
+      if (matchedSource.fetchItemDetails) {
+        const scrapedItem = await matchedSource.fetchItemDetails({
+          externalId: candidate.external_id || candidate.id,
+          title: candidate.original_title,
+          url: candidate.original_url,
+          publishedAt: candidate.original_published_at || new Date().toISOString()
+        });
+
+        if (scrapedItem.content && scrapedItem.content.length > 50) {
+          detailedContent = scrapedItem.content;
+        }
+        if (scrapedItem.imageUrl) {
+          imageUrl = scrapedItem.imageUrl;
+        }
+      }
+    } catch (scrapeErr) {
+      console.warn(`[reprocessCandidate] Aviso ao re-raspar fonte para ${id}:`, scrapeErr);
+    }
+
+    const cleanContent = cleanRawScrapedText(detailedContent);
+    const cleanTitle = sanitizeG1Title(candidate.original_title);
+    const aiAnalysis = await this.analyzeWithGemini(cleanTitle, cleanContent, matchedSource.name, isG1);
+    const cleanExcerpt = createCleanExcerpt(aiAnalysis.ai_summary || cleanContent, 200);
+
+    const updatePayload: any = {
+      original_content: cleanContent,
+      ai_content: aiAnalysis.ai_summary || null,
+      ai_summary: aiAnalysis.ai_summary || cleanExcerpt,
+      ai_title: aiAnalysis.ai_title || cleanTitle.toUpperCase(),
+      original_excerpt: cleanExcerpt,
+      ai_category: aiAnalysis.ai_category || candidate.ai_category || 'CIDADE',
+      ai_relevance_score: aiAnalysis.ai_relevance_score ?? candidate.ai_relevance_score ?? 70,
+      ai_regional_impact_score: aiAnalysis.ai_regional_impact_score ?? candidate.ai_regional_impact_score ?? 70,
+      ai_viral_potential_score: aiAnalysis.ai_viral_potential_score ?? candidate.ai_viral_potential_score ?? 60,
+      ai_analyzed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (imageUrl) {
+      updatePayload.original_image_url = imageUrl;
+      updatePayload.source_image_url = imageUrl;
+    }
+
+    const { data: updated, error: updateErr } = await supabaseClient
+      .from('news_candidates')
+      .update(updatePayload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateErr) {
+      console.error(`[reprocessCandidate] Erro ao atualizar candidato ${id}:`, updateErr);
+      throw updateErr;
+    }
+
+    return updated;
   }
 }
 

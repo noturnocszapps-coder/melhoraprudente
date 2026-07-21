@@ -1,4 +1,5 @@
 import { NewsSource, ScrapedNewsItem } from './types';
+import { cleanRawScrapedText, createCleanExcerpt, decodeHTMLEntities } from './cleaner';
 
 export class G1PresidentePrudenteSource implements NewsSource {
   public id = 'g1-presidente-prudente';
@@ -35,18 +36,19 @@ export class G1PresidentePrudenteSource implements NewsSource {
         // 1. Extrair Título
         const titleMatch = itemXml.match(/<title>\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*<\/title>/i) || itemXml.match(/<title>([\s\S]*?)<\/title>/i);
         if (!titleMatch) continue;
-        const title = titleMatch[1].trim();
+        const rawTitle = titleMatch[1];
+        const title = cleanRawScrapedText(rawTitle).replace(/\s+/g, ' ').trim();
 
         // 2. Extrair Link
         const linkMatch = itemXml.match(/<link>\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*<\/link>/i) || itemXml.match(/<link>([\s\S]*?)<\/link>/i);
         if (!linkMatch) continue;
-        const url = linkMatch[1].trim();
+        const url = linkMatch[1].replace(/<!\[CDATA\[/gi, '').replace(/\]\]>/g, '').trim();
 
         // 3. Extrair GUID / ID
         const guidMatch = itemXml.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i);
         let externalId = '';
         if (guidMatch) {
-          const guidVal = guidMatch[1].trim();
+          const guidVal = guidMatch[1].replace(/<!\[CDATA\[/gi, '').replace(/\]\]>/g, '').trim();
           // Extrair ID ou parte da URL
           const matchId = guidVal.match(/noticia\/[^/]+\/([^/]+)\.ghtml/i) || guidVal.match(/noticia\/(\d+)/i) || [null, guidVal];
           externalId = matchId[1] || guidVal;
@@ -113,22 +115,11 @@ export class G1PresidentePrudenteSource implements NewsSource {
           }
         }
 
-        // 6. Extrair Excerpt/Description (e limpar HTML)
+        // 6. Extrair Excerpt/Description (e criar chamada curta sem lixo)
         const descMatch = itemXml.match(/<description>\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*<\/description>/i) || itemXml.match(/<description>([\s\S]*?)<\/description>/i);
         let excerpt = '';
         if (descMatch) {
-          const rawDesc = descMatch[1];
-          // Limpar tags HTML do description (incluindo imagens do CDATA)
-          excerpt = rawDesc
-            .replace(/<[^>]+>/g, '') // Remove tags
-            .replace(/&nbsp;/g, ' ')
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/\s+/g, ' ')
-            .trim();
+          excerpt = createCleanExcerpt(descMatch[1], 200);
         }
 
         items.push({
@@ -138,7 +129,7 @@ export class G1PresidentePrudenteSource implements NewsSource {
           publishedAt,
           imageUrl,
           excerpt: excerpt || title,
-          content: excerpt || title, // Não copiamos texto integral
+          content: excerpt || title,
           sourceId: this.id,
           sourceName: this.name,
           sourceType: this.sourceType
@@ -175,19 +166,13 @@ export class G1PresidentePrudenteSource implements NewsSource {
       // Extrator de parágrafos padrão do G1: <p class="content-text__container">...</p>
       const pRegex = /<p[^>]*class=["'][^"']*content-text__container[^"']*["'][^>]*>([\s\S]*?)<\/p>/gi;
       let pMatch;
-      const paragraphs: string[] = [];
+      const rawParagraphs: string[] = [];
       while ((pMatch = pRegex.exec(html)) !== null) {
-        let pText = pMatch[1]
-          .replace(/<[^>]+>/g, '') // Remove HTML tags
-          .trim();
-        pText = decodeHTMLEntities(pText);
-        if (pText) {
-          paragraphs.push(pText);
-        }
+        rawParagraphs.push(pMatch[1]);
       }
 
       // Se falhar, extrator secundário para corpo de matéria do G1
-      if (paragraphs.length === 0) {
+      if (rawParagraphs.length === 0) {
         const articleBodyMatch = html.match(/<div[^>]*class=["'][^"']*mc-article-body[^"']*["'][^>]*>([\s\S]*?)<\/div>/i) ||
                                  html.match(/<div[^>]*class=["'][^"']*protected-content[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
         const searchHtml = articleBodyMatch ? articleBodyMatch[1] : html;
@@ -195,45 +180,21 @@ export class G1PresidentePrudenteSource implements NewsSource {
         const genericPRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
         let genPMatch;
         while ((genPMatch = genericPRegex.exec(searchHtml)) !== null) {
-          let pText = genPMatch[1].replace(/<[^>]+>/g, '').trim();
-          pText = decodeHTMLEntities(pText);
-          if (pText && pText.length > 20 && !pText.includes('Inscreva-se') && !pText.includes('Receba as notícias') && !pText.includes('globo.com')) {
-            paragraphs.push(pText);
-          }
+          rawParagraphs.push(genPMatch[1]);
         }
       }
 
-      const content = paragraphs.join('\n\n');
+      // Limpar todos os parágrafos com o cleaner
+      const rawCombined = rawParagraphs.join('\n');
+      const cleanContent = cleanRawScrapedText(rawCombined);
 
       return {
         ...item,
-        content: content || item.excerpt || item.title
+        content: cleanContent || item.excerpt || item.title
       };
     } catch (error) {
       console.error(`[Garimpo G1] Erro ao buscar detalhes da notícia G1 ${item.externalId}:`, error);
       return item;
     }
   }
-}
-
-function decodeHTMLEntities(text: string): string {
-  const entities: { [key: string]: string } = {
-    '&aacute;': 'á', '&Aacute;': 'Á', '&acirc;': 'â', '&Acirc;': 'Â', '&agrave;': 'à', '&Agrave;': 'À', '&atilde;': 'ã', '&Atilde;': 'Ã',
-    '&eacute;': 'é', '&Eacute;': 'É', '&ecirc;': 'ê', '&Ecirc;': 'Ê', '&egrave;': 'è', '&Egrave;': 'È',
-    '&iacute;': 'í', '&Iacute;': 'Í', '&icirc;': 'î', '&Icirc;': 'Î', '&igrave;': 'ì', '&Igrave;': 'Ì',
-    '&oacute;': 'ó', '&Oacute;': 'Ó', '&ocirc;': 'ô', '&Ocirc;': 'Ô', '&ograve;': 'ò', '&Ograve;': 'Ò', '&otilde;': 'õ', '&Otilde;': 'Õ',
-    '&uacute;': 'ú', '&Uacute;': 'Ú', '&ucirc;': 'û', '&Ucirc;': 'Û', '&ugrave;': 'ù', '&Ugrave;': 'Ù',
-    '&ccedil;': 'ç', '&Ccedil;': 'Ç', '&ntilde;': 'ñ', '&Ntilde;': 'Ñ',
-    '&nbsp;': ' ', '&quot;': '"', '&amp;': '&', '&lt;': '<', '&gt;': '>',
-    '&ldquo;': '"', '&rdquo;': '"', '&lsquo;': "'", '&rsquo;': "'", '&ndash;': '-', '&mdash;': '—',
-    '&ordm;': 'º', '&ordf;': 'ª'
-  };
-  return text.replace(/&[a-zA-Z0-9#]+;/g, (match) => {
-    if (entities[match]) return entities[match];
-    if (match.startsWith('&#')) {
-      const code = parseInt(match.substring(2, match.length - 1), 10);
-      if (!isNaN(code)) return String.fromCharCode(code);
-    }
-    return match;
-  });
 }

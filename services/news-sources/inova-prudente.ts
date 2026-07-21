@@ -1,4 +1,5 @@
 import { NewsSource, ScrapedNewsItem } from './types';
+import { cleanRawScrapedText, createCleanExcerpt } from './cleaner';
 
 export class InovaPrudenteSource implements NewsSource {
   public id = 'inova-prudente';

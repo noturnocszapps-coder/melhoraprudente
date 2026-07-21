@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { Calendar, User, Share2, MessageCircle, ArrowLeft, Heart, MessageSquare, ChevronRight, Clock } from 'lucide-react';
-import { formatDate, sanitizeHtml, formatContentToHtml } from '@/lib/utils';
+import { formatDate, sanitizeHtml, formatContentToHtml, generateSafeExcerpt } from '@/lib/utils';
 import { newsPortalService } from '@/services';
 import { Metadata } from 'next';
 import { News } from '@/types';
@@ -179,7 +179,7 @@ export default async function NewsDetailPage({ params }: Props) {
 
             {newsItem.excerpt && (
               <p className="text-lg md:text-xl text-zinc-500 font-medium leading-relaxed border-l-4 border-zinc-200 pl-5">
-                {newsItem.excerpt}
+                {generateSafeExcerpt(newsItem.excerpt, 220)}
               </p>
             )}
 

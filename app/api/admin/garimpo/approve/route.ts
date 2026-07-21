@@ -60,10 +60,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Campos obrigatórios ausentes (id, title, content, category)" }, { status: 400 });
     }
 
+    const trimmedContent = content.trim();
+
+    // Validações de segurança e qualidade editorial do conteúdo
+    if (trimmedContent.length < 150) {
+      return NextResponse.json({ error: "Publicação bloqueada: O conteúdo da notícia possui menos de 150 caracteres." }, { status: 400 });
+    }
+
+    if (trimmedContent.startsWith(']]>') || trimmedContent.includes('<![CDATA[') || trimmedContent.includes(']]>')) {
+      return NextResponse.json({ error: "Publicação bloqueada: O conteúdo contém marcas XML/CDATA residuais grave (ex: ]]>). Por favor, limpe ou recarregue o texto." }, { status: 400 });
+    }
+
+    if (trimmedContent.endsWith('...') || trimmedContent.endsWith('…')) {
+      return NextResponse.json({ error: "Publicação bloqueada: O conteúdo está truncado (termina com reticências '...'). Aguarde o carregamento do texto integral via IA." }, { status: 400 });
+    }
+
+    // Buscar candidato no banco para verificar se o conteúdo é idêntico ao original_content
+    const { data: candidate } = await client
+      .from('news_candidates')
+      .select('original_content')
+      .eq('id', id)
+      .single();
+
+    if (candidate?.original_content && candidate.original_content.trim() === trimmedContent) {
+      return NextResponse.json({ error: "Publicação bloqueada: O conteúdo aprovado não pode ser 100% idêntico ao texto original bruto extraído da fonte. Utilize a reescrita editorial da IA ou edite o texto." }, { status: 400 });
+    }
+
     const newsData = await garimpoService.approveAndPublishCandidate(id, {
       title,
       excerpt,
-      content,
+      content: trimmedContent,
       category,
       cover_image,
       city_slug,

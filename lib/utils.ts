@@ -93,7 +93,19 @@ export function sanitizeHtml(html: string): string {
  */
 export function generateSafeExcerpt(text: string, maxLength = 180): string {
   if (!text) return '';
-  const clean = text.replace(/\s+/g, ' ').trim();
+  let clean = text
+    .replace(/<!\[CDATA\[/gi, '')
+    .replace(/\]\]>/g, '')
+    .replace(/\]\]&gt;/g, '')
+    .replace(/&lt;!\[CDATA\[/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Filtrar se o texto começar com ]]>
+  clean = clean.replace(/^\]\]>/, '').trim();
+
+  if (!clean) return '';
   if (clean.length <= maxLength) return clean;
   
   // Corta o texto na largura máxima desejada
