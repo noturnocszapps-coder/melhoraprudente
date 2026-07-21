@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
         city_name,
         category: title.toLowerCase().includes("futebol") || title.toLowerCase().includes("vence") ? "Esportes" : "Geral",
         is_breaking: isBreaking,
-        ai_summary: content.substring(0, 180) + "...",
+        ai_summary: content,
         ai_seo_title: title.substring(0, 55) + " | Portal de Notícias",
         ai_seo_description: content.substring(0, 150),
         relevance_score: Math.floor(Math.random() * 40) + 60,

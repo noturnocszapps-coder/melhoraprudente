@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { Calendar, User, Share2, MessageCircle, ArrowLeft, Heart, MessageSquare, ChevronRight, Clock } from 'lucide-react';
-import { formatDate, sanitizeHtml } from '@/lib/utils';
+import { formatDate, sanitizeHtml, formatContentToHtml } from '@/lib/utils';
 import { newsPortalService } from '@/services';
 import { Metadata } from 'next';
 import { News } from '@/types';
@@ -237,7 +237,7 @@ export default async function NewsDetailPage({ params }: Props) {
           <div className="lg:col-span-8 space-y-12">
             <div 
               className="prose prose-zinc prose-lg max-w-none prose-headings:font-black prose-headings:tracking-tighter prose-p:leading-relaxed prose-p:text-zinc-800 prose-p:font-medium prose-a:text-red-600 prose-img:rounded-3xl prose-blockquote:border-red-600 prose-blockquote:bg-zinc-50 prose-blockquote:py-2 prose-blockquote:px-6 prose-blockquote:rounded-r-2xl whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(newsItem.content) }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(formatContentToHtml(newsItem.content)) }}
             />
 
             {/* Inline Ad slot */}

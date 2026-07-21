@@ -529,7 +529,7 @@ export default function NewsList() {
                 <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500 w-1.5/12">Status</th>
                 <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500 w-1.5/12">Data</th>
                 <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500 w-1/12 text-center">Acessos</th>
-                <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right w-1/12">Ações</th>
+                <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right w-2/12">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
@@ -606,66 +606,73 @@ export default function NewsList() {
                       </div>
                     </td>
                     <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {/* Custom actions popup menu triggers/shortcuts */}
-                        {item.status === 'published' ? (
-                          <button
-                            onClick={() => handleToggleStatus(item, 'draft')}
-                            disabled={actionLoadingId === item.id}
-                            title="Despublicar (Mudar para rascunho)"
-                            className="p-1.5 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 rounded-lg border border-zinc-200/50 transition-colors"
+                      <div className="flex flex-col items-end gap-1.5">
+                        {/* Primary actions with explicit text */}
+                        <div className="flex items-center gap-1.5">
+                          <Link 
+                            href={`/admin/noticias/editar/${item.id}`} 
+                            title="Editar notícia"
+                            className="px-2.5 py-1.5 bg-white hover:bg-zinc-100 text-zinc-700 rounded-lg border border-zinc-200 transition-colors text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 shrink-0"
                           >
-                            <Clock size={12} />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleToggleStatus(item, 'published')}
+                            <Edit size={10} />
+                            Editar
+                          </Link>
+                          
+                          <button 
+                            onClick={() => setNewsToDelete(item)}
                             disabled={actionLoadingId === item.id}
-                            title="Publicar agora"
-                            className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-800 rounded-lg border border-emerald-100 transition-colors"
+                            title="Excluir notícia"
+                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg border border-rose-100 transition-colors text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 cursor-pointer shrink-0"
                           >
-                            <CheckCircle size={12} />
+                            {actionLoadingId === item.id ? (
+                              <Loader2 className="animate-spin text-rose-600" size={10} />
+                            ) : (
+                              <Trash2 size={10} />
+                            )}
+                            Excluir
                           </button>
-                        )}
-
-                        <button
-                          onClick={() => handleDuplicate(item)}
-                          disabled={actionLoadingId === item.id}
-                          title="Duplicar Notícia"
-                          className="p-1.5 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-blue-600 rounded-lg border border-zinc-200/50 transition-colors"
-                        >
-                          <Copy size={12} />
-                        </button>
-
-                        <Link 
-                          href={`/admin/noticias/editar/${item.id}`} 
-                          title="Editar"
-                          className="p-1.5 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-red-600 rounded-lg border border-zinc-200/50 transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
-                        >
-                          <Edit size={12} />
-                        </Link>
+                        </div>
                         
-                        <Link 
-                          href={`/noticia/${item.slug}`} 
-                          target="_blank" 
-                          title="Visualizar no site"
-                          className="p-1.5 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 rounded-lg border border-zinc-200/50 transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
-                        >
-                          <ExternalLink size={12} />
-                        </Link>
-                        
-                        <button 
-                          onClick={() => setNewsToDelete(item)}
-                          disabled={actionLoadingId === item.id}
-                          title="Excluir notícia"
-                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-400 hover:text-rose-600 rounded-lg border border-rose-100/50 transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center cursor-pointer"
-                        >
-                          {actionLoadingId === item.id ? (
-                            <Loader2 className="animate-spin text-rose-600" size={12} />
+                        {/* Secondary utility actions */}
+                        <div className="flex items-center gap-1">
+                          {item.status === 'published' ? (
+                            <button
+                              onClick={() => handleToggleStatus(item, 'draft')}
+                              disabled={actionLoadingId === item.id}
+                              title="Despublicar (Mudar para rascunho)"
+                              className="p-1 text-zinc-400 hover:text-zinc-600 rounded-md hover:bg-zinc-100 transition-all cursor-pointer"
+                            >
+                              <Clock size={11} />
+                            </button>
                           ) : (
-                            <Trash2 size={12} />
+                            <button
+                              onClick={() => handleToggleStatus(item, 'published')}
+                              disabled={actionLoadingId === item.id}
+                              title="Publicar agora"
+                              className="p-1 text-emerald-500 hover:text-emerald-700 rounded-md hover:bg-emerald-50 transition-all cursor-pointer"
+                            >
+                              <CheckCircle size={11} />
+                            </button>
                           )}
-                        </button>
+
+                          <button
+                            onClick={() => handleDuplicate(item)}
+                            disabled={actionLoadingId === item.id}
+                            title="Duplicar Notícia"
+                            className="p-1 text-zinc-400 hover:text-zinc-600 rounded-md hover:bg-zinc-100 transition-all cursor-pointer"
+                          >
+                            <Copy size={11} />
+                          </button>
+
+                          <Link 
+                            href={`/noticia/${item.slug}`} 
+                            target="_blank" 
+                            title="Visualizar no site"
+                            className="p-1 text-zinc-400 hover:text-zinc-600 rounded-md hover:bg-zinc-100 transition-all"
+                          >
+                            <ExternalLink size={11} />
+                          </Link>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -758,55 +765,65 @@ export default function NewsList() {
                 </div>
 
                 {/* Touch-safe Action Buttons with 44px boundaries */}
-                <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100/80 pt-3">
-                  <Link 
-                    href={`/admin/noticias/editar/${item.id}`} 
-                    className="flex-1 min-w-[70px] h-11 border border-zinc-200 hover:bg-zinc-50 bg-white rounded-xl text-zinc-700 text-[10px] font-black uppercase flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <Edit size={13} />
-                    Editar
-                  </Link>
+                <div className="flex flex-col gap-2 border-t border-zinc-100/80 pt-3">
+                  {/* Primary Row: Editar & Excluir */}
+                  <div className="flex items-center gap-2">
+                    <Link 
+                      href={`/admin/noticias/editar/${item.id}`} 
+                      className="flex-1 h-11 border border-zinc-200 hover:bg-zinc-50 bg-white rounded-xl text-zinc-700 text-[10px] font-black uppercase flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <Edit size={13} />
+                      Editar
+                    </Link>
 
-                  <button
-                    onClick={() => handleToggleStatus(item, item.status === 'published' ? 'draft' : 'published')}
-                    disabled={actionLoadingId === item.id}
-                    className={cn(
-                      "flex-1 min-w-[70px] h-11 border rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-1.5 transition-colors",
-                      item.status === 'published'
-                        ? "border-amber-200 hover:bg-amber-50/50 text-amber-700 bg-white"
-                        : "border-emerald-200 hover:bg-emerald-50/50 text-emerald-700 bg-white"
-                    )}
-                  >
-                    {item.status === 'published' ? <Clock size={13} /> : <CheckCircle size={13} />}
-                    {item.status === 'published' ? 'Unpub' : 'Pub'}
-                  </button>
+                    <button
+                      onClick={() => setNewsToDelete(item)}
+                      disabled={actionLoadingId === item.id}
+                      className="flex-1 h-11 border border-rose-200 hover:bg-rose-50 text-rose-600 bg-white rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      {actionLoadingId === item.id ? (
+                        <Loader2 className="animate-spin text-rose-600" size={13} />
+                      ) : (
+                        <Trash2 size={13} />
+                      )}
+                      Excluir
+                    </button>
+                  </div>
 
-                  <button
-                    onClick={() => handleDuplicate(item)}
-                    disabled={actionLoadingId === item.id}
-                    className="h-11 w-11 border border-zinc-200 hover:bg-zinc-50 bg-white rounded-xl text-zinc-600 flex items-center justify-center shrink-0 transition-colors"
-                    title="Duplicar"
-                  >
-                    <Copy size={13} />
-                  </button>
+                  {/* Secondary Row: Toggle Status, Duplicate, View */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleStatus(item, item.status === 'published' ? 'draft' : 'published')}
+                      disabled={actionLoadingId === item.id}
+                      className={cn(
+                        "flex-1 h-11 border rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-1.5 transition-colors",
+                        item.status === 'published'
+                          ? "border-amber-200 hover:bg-amber-50/50 text-amber-700 bg-white"
+                          : "border-emerald-200 hover:bg-emerald-50/50 text-emerald-700 bg-white"
+                      )}
+                    >
+                      {item.status === 'published' ? <Clock size={13} /> : <CheckCircle size={13} />}
+                      {item.status === 'published' ? 'Despublicar' : 'Publicar'}
+                    </button>
 
-                  <Link 
-                    href={`/noticia/${item.slug}`} 
-                    target="_blank" 
-                    className="h-11 w-11 border border-zinc-200 hover:bg-zinc-50 bg-white rounded-xl text-zinc-600 flex items-center justify-center shrink-0 transition-colors"
-                    title="Visualizar"
-                  >
-                    <ExternalLink size={13} />
-                  </Link>
+                    <button
+                      onClick={() => handleDuplicate(item)}
+                      disabled={actionLoadingId === item.id}
+                      className="h-11 w-11 border border-zinc-200 hover:bg-zinc-50 bg-white rounded-xl text-zinc-600 flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                      title="Duplicar"
+                    >
+                      <Copy size={13} />
+                    </button>
 
-                  <button 
-                    onClick={() => setNewsToDelete(item)}
-                    disabled={actionLoadingId === item.id}
-                    className="flex-1 min-w-[70px] h-11 border border-rose-200 hover:bg-rose-50 bg-white rounded-xl text-rose-600 text-[10px] font-black uppercase flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Trash2 size={13} />
-                    Excluir
-                  </button>
+                    <Link 
+                      href={`/noticia/${item.slug}`} 
+                      target="_blank" 
+                      className="h-11 w-11 border border-zinc-200 hover:bg-zinc-50 bg-white rounded-xl text-zinc-600 flex items-center justify-center shrink-0 transition-colors"
+                      title="Visualizar"
+                    >
+                      <ExternalLink size={13} />
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))

@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { PrefeituraPrudenteSource } from './prefeitura-prudente';
 import { G1PresidentePrudenteSource } from './g1-presidente-prudente';
+import { InovaPrudenteSource } from './inova-prudente';
 import { NewsSource, ScrapedNewsItem } from './types';
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 
@@ -35,6 +36,40 @@ export function sanitizeG1Title(title: string): string {
     .trim();
 }
 
+export function getGarimpoMinimumDate(): Date {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const parts = formatter.formatToParts(now);
+  const year = parseInt(parts.find(p => p.type === 'year')?.value || '', 10);
+  const month = parseInt(parts.find(p => p.type === 'month')?.value || '', 10) - 1; // 0-indexed
+  const day = parseInt(parts.find(p => p.type === 'day')?.value || '', 10);
+  
+  // Criar data de hoje 00:00 no fuso de São Paulo (UTC-3)
+  const todayInSP = new Date(Date.UTC(year, month, day, 3, 0, 0, 0));
+  
+  // Ontem às 00:00 no fuso de São Paulo
+  const yesterdayInSP = new Date(todayInSP.getTime() - 24 * 60 * 60 * 1000);
+  return yesterdayInSP;
+}
+
+export interface SourceBreakdown {
+  id: string;
+  name: string;
+  status: 'Operacional' | 'Indisponível';
+  scraped: number;
+  newCandidates: number;
+  old: number;
+  duplicates: number;
+  ignored: number;
+  saved: number;
+  error?: string;
+}
+
 export interface GarimpoStats {
   scraped: number;
   newCandidates: number;
@@ -44,12 +79,14 @@ export interface GarimpoStats {
   old: number;
   ignored: number;
   errors: string[];
+  sourcesBreakdown?: SourceBreakdown[];
 }
 
 export class GarimpoService {
   private sources: NewsSource[] = [
     new PrefeituraPrudenteSource(),
-    new G1PresidentePrudenteSource()
+    new G1PresidentePrudenteSource(),
+    new InovaPrudenteSource()
   ];
 
   /**
@@ -80,6 +117,41 @@ export class GarimpoService {
   }
 
   /**
+   * Limpa candidatas pendentes antigas marcando-as como 'rejected' (rejeitadas por antiguidade).
+   */
+  public async limparCandidatasAntigas(supabaseClient = supabase) {
+    if (!isSupabaseConfigured) return;
+    try {
+      const minDate = getGarimpoMinimumDate();
+      
+      const { error } = await supabaseClient
+        .from('news_candidates')
+        .update({ 
+          status: 'rejected', 
+          editorial_status: 'rejeitada',
+          updated_at: new Date().toISOString() 
+        })
+        .eq('status', 'pending')
+        .lt('original_published_at', minDate.toISOString());
+
+      if (error) {
+        console.warn('[GarimpoService] Erro ao limpar candidatas antigas, tentando sem editorial_status:', error);
+        // Fallback para quando as colunas novas ainda não estiverem migradas
+        await supabaseClient
+          .from('news_candidates')
+          .update({ 
+            status: 'rejected', 
+            updated_at: new Date().toISOString() 
+          })
+          .eq('status', 'pending')
+          .lt('original_published_at', minDate.toISOString());
+      }
+    } catch (err) {
+      console.error('[GarimpoService] Erro ao limpar candidatas antigas:', err);
+    }
+  }
+
+  /**
    * Lista os candidatos a notícias ordenados pelos mais recentes coletados.
    */
   public async listCandidates(status?: string, supabaseClient = supabase) {
@@ -88,6 +160,11 @@ export class GarimpoService {
     }
 
     try {
+      // Limpar as pendentes antigas automaticamente antes de listar
+      if (status === 'pending') {
+        await this.limparCandidatasAntigas(supabaseClient);
+      }
+
       let query = supabaseClient
         .from('news_candidates')
         .select('*')
@@ -145,7 +222,7 @@ export class GarimpoService {
       contentType: "regional_news",
       isLocallyRelevant: true,
       ai_title: title.toUpperCase(),
-      ai_summary: content.substring(0, 180) + '...',
+      ai_summary: content || title,
       ai_category: 'CIDADE',
       categoryConfidence: 0.9,
       categoryReason: 'Heurística padrão de fallback',
@@ -308,13 +385,14 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
   public async buscarNovasNoticias(limit = 10, supabaseClient = supabase): Promise<GarimpoStats> {
     const stats: GarimpoStats = {
       scraped: 0,
-      newCandidates: 0,
+      newCandidates: 0, // Recentes
       saved: 0,
       skipped: 0,
       duplicates: 0,
-      old: 0,
+      old: 0, // Antigas
       ignored: 0,
-      errors: []
+      errors: [],
+      sourcesBreakdown: []
     };
 
     if (!isSupabaseConfigured) {
@@ -330,7 +408,10 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
         return stats;
       }
 
-      // 2. Buscar candidatos recentes (últimos 7 dias) para cruzar e detectar deduplicações
+      // 2. Limpar candidatas antigas da fila ativa antes de qualquer nova varredura
+      await this.limparCandidatasAntigas(supabaseClient);
+
+      // 3. Buscar candidatos recentes (últimos 7 dias) para cruzar e detectar deduplicações
       const recentLimitDate = new Date();
       recentLimitDate.setDate(recentLimitDate.getDate() - 7);
       const { data: recentCandidates, error: recentError } = await supabaseClient
@@ -340,152 +421,149 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
 
       const recentList = recentCandidates || [];
 
-      // 3. Iterar sobre todas as fontes registradas de forma isolada (se uma falhar, as outras continuam!)
+      // 4. Obter a janela temporal estrita (Início de Ontem America/Sao_Paulo)
+      const limitDate = getGarimpoMinimumDate();
+      console.log(`[GarimpoService] Janela Temporal Global - Data Mínima de Publicação: ${limitDate.toISOString()} (${limitDate.toLocaleDateString('pt-BR')} America/Sao_Paulo)`);
+
+      // 5. Iterar sobre todas as fontes registradas de forma isolada
       for (const source of this.sources) {
+        const srcBreakdown: SourceBreakdown = {
+          id: source.id,
+          name: source.name,
+          status: 'Operacional',
+          scraped: 0,
+          newCandidates: 0,
+          old: 0,
+          duplicates: 0,
+          ignored: 0,
+          saved: 0
+        };
+
         try {
           console.log(`[GarimpoService] Iniciando coleta da fonte: ${source.name} (${source.url})`);
           
-          // Verificar se é o primeiro sync para esta fonte
-          const { count, error: countError } = await supabaseClient
-            .from('news_candidates')
-            .select('*', { count: 'exact', head: true })
-            .eq('source_id', source.id);
-          
-          const isFirstSync = !countError && count === 0;
-          const isG1 = source.id === 'g1-presidente-prudente';
-          const daysLimit = (isG1 && isFirstSync) ? 30 : 7;
-          
-          const limitDate = new Date();
-          limitDate.setDate(limitDate.getDate() - daysLimit);
-
           const scrapedItems = await source.fetchLatestItems(limit);
+          srcBreakdown.scraped = scrapedItems.length;
+          stats.scraped += scrapedItems.length;
 
           if (scrapedItems.length === 0) {
             console.log(`[GarimpoService] Nenhum item retornado pela fonte ${source.name}.`);
+            stats.sourcesBreakdown?.push(srcBreakdown);
             continue;
           }
 
-          // Filtrar por data da janela limite (Regra Temporal Rigorosa)
-          const itemsWithinWindow = scrapedItems.filter(item => {
-            if (!item.publishedAt || item.publishedAt === 'unknown') {
-              console.log(`[GarimpoService] Filtro Temporal: Descartado por data desconhecida. Matéria: "${item.title}" (${item.url})`);
-              stats.old++;
-              return false;
-            }
-            const pubDate = new Date(item.publishedAt);
-            if (isNaN(pubDate.getTime())) {
-              console.log(`[GarimpoService] Filtro Temporal: Descartado por data inválida (${item.publishedAt}). Matéria: "${item.title}" (${item.url})`);
-              stats.old++;
-              return false;
-            }
-            const isInWindow = pubDate >= limitDate;
-            if (!isInWindow) {
-              console.log(`[GarimpoService] Filtro Temporal: Descartado por ser ANTIGA / FORA DA JANELA. Data Original: ${pubDate.toLocaleDateString('pt-BR')}, Janela Limite: ${limitDate.toLocaleDateString('pt-BR')} (${daysLimit} dias). Matéria: "${item.title}" (${item.url}) - AÇÃO: IGNORADA ANTES DA IA.`);
-              stats.old++;
-            } else {
-              console.log(`[GarimpoService] Filtro Temporal: Mantido na janela. Data Original: ${pubDate.toLocaleDateString('pt-BR')}, Janela Limite: ${limitDate.toLocaleDateString('pt-BR')}. Matéria: "${item.title}"`);
-            }
-            return isInWindow;
-          });
-
-          stats.scraped += itemsWithinWindow.length;
-
-          if (itemsWithinWindow.length === 0) {
-            console.log(`[GarimpoService] Todos os itens da fonte ${source.name} estão fora da janela de ${daysLimit} dias.`);
-            continue;
-          }
-
-          // Buscar IDs externos já existentes no banco para esta fonte específica para não duplicar
-          const externalIds = itemsWithinWindow.map(item => item.externalId);
-          const { data: existingCandidates, error: queryError } = await supabaseClient
-            .from('news_candidates')
-            .select('external_id')
-            .eq('source_id', source.id)
-            .in('external_id', externalIds);
-
-          if (queryError) {
-            console.error(`[GarimpoService] Erro ao buscar itens existentes para ${source.name}:`, queryError);
-            stats.errors.push(`Erro ao validar existentes para ${source.name}: ${queryError.message}`);
-            continue;
-          }
-
-          const existingIdsSet = new Set(existingCandidates?.map(row => row.external_id) || []);
-
-          // Filtrar itens não coletados por ID externo
-          const newItems = itemsWithinWindow.filter(item => !existingIdsSet.has(item.externalId));
+          const isG1 = source.id === 'g1-presidente-prudente';
 
           // Processar e salvar cada candidato novo
-          for (const item of newItems) {
+          for (const item of scrapedItems) {
             try {
-              // 4. Deduplicação Exata por URL antes de qualquer chamada para a IA (economia de custos)
-              const { data: exactDuplicate, error: exactError } = await supabaseClient
+              // A. FILTRO TEMPORAL GLOBAL: ontem em diante
+              let isOld = false;
+              if (!item.publishedAt || item.publishedAt === 'unknown') {
+                isOld = true;
+                console.log(`[GarimpoService] Filtro Temporal: Descartado por data ausente/desconhecida. Matéria: "${item.title}"`);
+              } else {
+                const pubDate = new Date(item.publishedAt);
+                if (isNaN(pubDate.getTime())) {
+                  isOld = true;
+                  console.log(`[GarimpoService] Filtro Temporal: Descartado por data inválida (${item.publishedAt}). Matéria: "${item.title}"`);
+                } else if (pubDate < limitDate) {
+                  isOld = true;
+                  console.log(`[GarimpoService] Filtro Temporal: Descartado por ser ANTIGA. Publicada: ${pubDate.toISOString()} < Limite: ${limitDate.toISOString()}. Matéria: "${item.title}"`);
+                }
+              }
+
+              if (isOld) {
+                srcBreakdown.old++;
+                stats.old++;
+                continue;
+              }
+
+              // Se passou pelo filtro temporal, é considerada RECENTE (Identificada)
+              srcBreakdown.newCandidates++;
+              stats.newCandidates++;
+
+              // B. DEDUPLICAÇÃO EXATA por URL ou ID Externo no banco de dados antes da chamada da IA
+              const { data: exactDuplicateByUrl } = await supabaseClient
                 .from('news_candidates')
                 .select('id')
                 .eq('original_url', item.url)
                 .limit(1)
                 .maybeSingle();
 
-              if (exactDuplicate) {
-                console.log(`[GarimpoService] Deduplicação Exata: URL já processada anteriormente: ${item.url}`);
+              let isDuplicate = !!exactDuplicateByUrl;
+
+              if (!isDuplicate) {
+                const { data: exactDuplicateById } = await supabaseClient
+                  .from('news_candidates')
+                  .select('id')
+                  .eq('source_id', source.id)
+                  .eq('external_id', item.externalId)
+                  .limit(1)
+                  .maybeSingle();
+                
+                isDuplicate = !!exactDuplicateById;
+              }
+
+              if (isDuplicate) {
+                console.log(`[GarimpoService] Deduplicação Exata: Item já processado anteriormente: ${item.url}`);
+                srcBreakdown.duplicates++;
                 stats.duplicates++;
                 continue;
               }
 
-              // Obter detalhes completos da notícia
+              // C. DETALHAMENTO E SANITIZAÇÃO
               const detailedItem = source.fetchItemDetails 
                 ? await source.fetchItemDetails(item)
                 : item;
 
-              // Sanitização prévia de dados para G1
               const cleanTitle = isG1 ? sanitizeG1Title(detailedItem.title) : detailedItem.title;
               const cleanExcerpt = isG1 ? sanitizeG1Text(detailedItem.excerpt || '') : (detailedItem.excerpt || '');
               const cleanContent = isG1 ? sanitizeG1Text(detailedItem.content || '') : (detailedItem.content || '');
 
-              // Análise inteligente com o Gemini
-              const aiAnalysis = await this.analyzeWithGemini(
-                cleanTitle,
-                cleanContent || cleanExcerpt || cleanTitle,
-                source.name,
-                isG1
-              );
+              // D. ANÁLISE COM O GEMINI
+              let aiAnalysis;
+              try {
+                aiAnalysis = await this.analyzeWithGemini(
+                  cleanTitle,
+                  cleanContent || cleanExcerpt || cleanTitle,
+                  source.name,
+                  isG1
+                );
+              } catch (geminiErr: any) {
+                console.error(`[GarimpoService] Erro na análise Gemini do item ${item.externalId}:`, geminiErr);
+                stats.errors.push(`Erro na IA do item "${cleanTitle}" de ${source.name}: ${geminiErr.message || geminiErr}`);
+                continue; // Conta como erro de processamento
+              }
 
-              // 5. Filtragem Editorial Inteligente: descartar irrelevantes ou de tipos não jornalísticos (receitas, entretenimento nacional, etc.)
+              // E. FILTRAGEM EDITORIAL INTELIGENTE POR IA
               const isIgnoredType = aiAnalysis.contentType === 'recipe' || aiAnalysis.contentType === 'generic_content';
               if (!aiAnalysis.isLocallyRelevant || isIgnoredType) {
-                console.log(`[GarimpoService] Filtragem IA: Item descartado por baixa relevância local ou categoria não jornalística: "${cleanTitle}" (contentType: ${aiAnalysis.contentType}, isLocallyRelevant: ${aiAnalysis.isLocallyRelevant})`);
+                console.log(`[GarimpoService] Filtragem IA: Item descartado por irrelevância regional: "${cleanTitle}"`);
+                srcBreakdown.ignored++;
                 stats.ignored++;
                 continue;
               }
 
-              // 6. Deduplicação Semântica de Cobertura de Pauta
+              // F. DEDUPLICAÇÃO SEMÂNTICA DE COBERTURA DE PAUTA
               let possibleDuplicateOf: string | null = null;
-              let isCriticalDuplicate = false;
-
               for (const recent of recentList) {
                 if (recent.source_name !== source.name) {
                   const similarity = this.checkTitleSimilarityValue(cleanTitle, recent.original_title);
                   if (similarity >= 0.45) {
                     possibleDuplicateOf = recent.id;
-                    if (similarity >= 0.75) {
-                      isCriticalDuplicate = true;
-                    }
-                    console.log(`[GarimpoService] Deduplicação Semântica: Similaridade de ${Math.round(similarity * 100)}% entre "${cleanTitle}" e "${recent.original_title}" (Crítico: ${isCriticalDuplicate})`);
+                    console.log(`[GarimpoService] Deduplicação Semântica: Similaridade de ${Math.round(similarity * 100)}% entre "${cleanTitle}" e "${recent.original_title}"`);
                     break;
                   }
                 }
               }
 
-              stats.newCandidates++;
-
-              // Configurar metadados do provedor e direitos autorais
-              const imageUsageStatus = isG1 ? 'unknown' : 'allowed'; // G1 é 'unknown' (necessita de análise ou imagem própria), prefeitura é domínio público
-
-              // NUNCA rejeitar automaticamente por duplicidade semântica (rejeição automática reservada apenas para duplicidade exata de URL)
+              // G. PERSISTÊNCIA DOS CANDIDATOS FILTRADOS
+              const imageUsageStatus = isG1 ? 'unknown' : 'allowed';
               const candStatus = 'pending';
               const editorialStatusVal = 'coletada';
               const aiAnalysisStatusVal = 'Analisado';
 
-              // Objeto completo com novos campos
               const insertObj: any = {
                 source_name: source.name,
                 source_url: source.url,
@@ -503,7 +581,6 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                 ai_regional_impact_score: aiAnalysis.ai_regional_impact_score ?? 70,
                 ai_viral_potential_score: aiAnalysis.ai_viral_potential_score ?? 60,
                 
-                // Novos campos estruturados da Segunda Onda
                 source_id: source.id,
                 source_type: source.sourceType,
                 source_image_url: detailedItem.imageUrl || null,
@@ -518,7 +595,6 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                 insertObj.possible_duplicate_of = possibleDuplicateOf;
               }
 
-              // Inserir no banco de dados de forma tolerante a falhas
               const { data: insertedCandidate, error: insertError } = await supabaseClient
                 .from('news_candidates')
                 .insert(insertObj)
@@ -526,9 +602,8 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                 .maybeSingle();
 
               if (insertError) {
-                console.warn(`[GarimpoService] Erro ao inserir com novos campos. Tentando fallback tradicional...`, insertError);
+                console.warn(`[GarimpoService] Erro ao inserir com novos campos, tentando fallback tradicional...`);
                 
-                // Fallback tradicional caso o usuário ainda não tenha rodado o script de migração SQL
                 const fallbackObj: any = {
                   source_name: source.name,
                   source_url: source.url,
@@ -559,8 +634,9 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
 
                 if (fallbackError) {
                   console.error(`[GarimpoService] Falha definitiva ao salvar candidato ${item.externalId}:`, fallbackError);
-                  stats.errors.push(`Erro ao salvar notícia ID ${item.externalId}: ${fallbackError.message}`);
+                  stats.errors.push(`Erro ao salvar notícia "${cleanTitle}" no Supabase: ${fallbackError.message}`);
                 } else {
+                  srcBreakdown.saved++;
                   stats.saved++;
                   if (fallbackInserted) {
                     recentList.push({
@@ -572,6 +648,7 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                   }
                 }
               } else {
+                srcBreakdown.saved++;
                 stats.saved++;
                 if (insertedCandidate) {
                   recentList.push({
@@ -583,15 +660,18 @@ Retorne obrigatoriamente um objeto JSON válido no formato do esquema solicitado
                 }
               }
             } catch (itemErr: any) {
-              console.error(`[GarimpoService] Falha ao processar item individual ${item.externalId} da fonte ${source.name}:`, itemErr);
-              stats.errors.push(`Falha no item ${item.externalId} de ${source.name}: ${itemErr.message || itemErr}`);
+              console.error(`[GarimpoService] Falha no item individual ${item.externalId}:`, itemErr);
+              stats.errors.push(`Falha ao processar item "${item.title}" de ${source.name}: ${itemErr.message || itemErr}`);
             }
           }
         } catch (sourceErr: any) {
-          // ISOLAMENTO DE FALHAS: Se uma fonte falhar ou estiver fora do ar, registramos o erro, mas continuamos processando as outras fontes normalmente!
-          console.error(`[GarimpoService] Erro na varredura da fonte ${source.name}:`, sourceErr);
+          console.error(`[GarimpoService] Erro crítico na fonte ${source.name}:`, sourceErr);
+          srcBreakdown.status = 'Indisponível';
+          srcBreakdown.error = sourceErr.message || String(sourceErr);
           stats.errors.push(`Falha crítica na fonte ${source.name}: ${sourceErr.message || sourceErr}`);
         }
+
+        stats.sourcesBreakdown?.push(srcBreakdown);
       }
 
       stats.skipped = stats.scraped - stats.saved;

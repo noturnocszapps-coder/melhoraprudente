@@ -19,12 +19,14 @@ export class PrefeituraPrudenteSource implements NewsSource {
         const year = parseInt(parts[2], 10);
         
         const date = new Date(year, month, day, 12, 0, 0); // Define meio-dia para evitar variações de fuso horário
-        return date.toISOString();
+        if (!isNaN(date.getTime())) {
+          return date.toISOString();
+        }
       }
     } catch (e) {
       console.warn('Erro ao converter data:', dateStr, e);
     }
-    return new Date().toISOString();
+    return 'unknown';
   }
 
   /**
@@ -240,11 +242,30 @@ export class PrefeituraPrudenteSource implements NewsSource {
 
         content = cleanedText;
 
-        // Criar o resumo (excerpt) das primeiras linhas (máx 220 caracteres)
+        // Criar o resumo (excerpt) das primeiras linhas (máx 220 caracteres) de forma segura sem truncar palavras
         const plainTextOneLine = content.replace(/\s+/g, ' ').trim();
-        excerpt = plainTextOneLine.length > 220 
-          ? plainTextOneLine.substring(0, 217) + '...' 
-          : plainTextOneLine;
+        if (plainTextOneLine.length <= 220) {
+          excerpt = plainTextOneLine;
+        } else {
+          let truncated = plainTextOneLine.substring(0, 220);
+          const lastSentenceEnd = Math.max(
+            truncated.lastIndexOf('. '),
+            truncated.lastIndexOf('? '),
+            truncated.lastIndexOf('! ')
+          );
+          if (lastSentenceEnd > 60) {
+            excerpt = truncated.substring(0, lastSentenceEnd + 1);
+          } else {
+            const lastSpace = truncated.lastIndexOf(' ');
+            if (lastSpace > 60) {
+              truncated = truncated.substring(0, lastSpace);
+            }
+            // Remover pontuações órfãs ou palavras fracas no final
+            truncated = truncated.replace(/[,;:\-\s\+]+$/, '');
+            truncated = truncated.replace(/\s+(e|ou|de|da|do|em|com|para|um|uma|o|a|os|as|no|na|nos|nas|por|como)$/i, '');
+            excerpt = truncated + '...';
+          }
+        }
       }
 
       // Adiciona delay de cortesia de 500ms para evitar sobrecarga (scrape amigável)

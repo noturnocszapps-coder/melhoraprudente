@@ -24,7 +24,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { cn } from '@/lib/utils';
+import { cn, generateSafeExcerpt } from '@/lib/utils';
 
 interface NewsCandidate {
   id: string;
@@ -99,7 +99,7 @@ export default function GarimpoDashboard() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'approved_published' | 'rejected'>('pending');
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'prefeitura-prudente' | 'g1-presidente-prudente'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'prefeitura-prudente' | 'g1-presidente-prudente' | 'inova-prudente'>('all');
   
   // Diagnostic states
   const [diagnostic, setDiagnostic] = useState<{
@@ -158,7 +158,7 @@ export default function GarimpoDashboard() {
 
   // Statuses & Actions
   const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<{ scraped: number; newCandidates: number; saved: number } | null>(null);
+  const [scanResult, setScanResult] = useState<any | null>(null);
   const [missingTable, setMissingTable] = useState(false);
   const [sqlCopied, setSqlCopied] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
@@ -175,10 +175,13 @@ export default function GarimpoDashboard() {
   const [editCoverImage, setEditCoverImage] = useState('');
   const [publishStatus, setPublishStatus] = useState<'published' | 'draft'>('published');
   const [loadingFullContent, setLoadingFullContent] = useState(false);
+  const [scrapedContent, setScrapedContent] = useState('');
 
   // Load candidates list
-  const loadCandidates = async () => {
-    setLoading(true);
+  const loadCandidates = async (isBackground = false) => {
+    if (!isBackground) {
+      setLoading(true);
+    }
     setMissingTable(false);
     setDiagnostic(null); // Limpar diagnósticos anteriores
     try {
@@ -287,7 +290,7 @@ export default function GarimpoDashboard() {
         const stats = data.stats;
         setScanResult(stats);
         setScanDetails({
-          sourceName: 'Prefeitura e G1 - Multi-fontes',
+          sourceName: 'Prefeitura, G1 e Inova - Multi-fontes',
           scraped: stats.scraped,
           newCandidates: stats.newCandidates,
           saved: stats.saved,
@@ -298,7 +301,7 @@ export default function GarimpoDashboard() {
           errorsCount: stats.errors?.length || 0,
           errorsList: stats.errors || []
         });
-        await loadCandidates();
+        await loadCandidates(true);
       } else if (data.error) {
         setDiagnostic({
           url,
@@ -367,7 +370,7 @@ export default function GarimpoDashboard() {
           contentType: contentType || 'application/json',
           responsePreview: JSON.stringify(data).substring(0, 300)
         });
-        alert('Erro ao rejeitar candidato: ' + data.error);
+        alert('Erro ao rejeitar notícia: ' + data.error);
       }
     } catch (err: any) {
       if (!diagnostic) {
@@ -383,18 +386,28 @@ export default function GarimpoDashboard() {
   const startEditing = (cand: NewsCandidate) => {
     setEditingCandidate(cand);
     setEditTitle((cand.ai_title || cand.original_title).toUpperCase());
-    setEditExcerpt(cand.ai_summary || cand.original_excerpt || '');
-    setEditContent(cand.original_excerpt || 'Carregando conteúdo completo da matéria...');
+    
+    // O ai_summary gerado pelo Gemini é o corpo editorial reescrito (2-4 parágrafos)
+    // Se ele existir e não for um fallback curto com "...", deve ser o Conteúdo Principal (editContent)
+    // e o resumo otimizado deve ser o original (curto) ou um safe excerpt
+    const hasAiSummary = typeof cand.ai_summary === 'string' && 
+                          cand.ai_summary.trim().length > 0 && 
+                          !cand.ai_summary.endsWith('...');
+    
+    setEditContent(hasAiSummary ? cand.ai_summary! : (cand.original_excerpt || 'Carregando conteúdo completo da matéria...'));
+    setEditExcerpt(cand.original_excerpt || (hasAiSummary ? generateSafeExcerpt(cand.ai_summary!, 180) : ''));
+    
     setEditCategory(mapAiCategoryToUi(cand.ai_category));
     setEditCoverImage(cand.original_image_url || '');
     setPublishStatus('published');
+    setScrapedContent(''); // Limpar ao iniciar nova edição
 
     // Carregar automaticamente o conteúdo completo em background via API Proxy sem CORS
-    loadFullContentForEdit(cand);
+    loadFullContentForEdit(cand, hasAiSummary);
   };
 
   // Safe lazy load detail contents for revision using secure server-side API proxy
-  const loadFullContentForEdit = async (cand: NewsCandidate) => {
+  const loadFullContentForEdit = async (cand: NewsCandidate, hasAiSummary: boolean) => {
     setActionId(cand.id);
     setLoadingFullContent(true);
     try {
@@ -410,17 +423,31 @@ export default function GarimpoDashboard() {
       
       const data = await res.json();
       if (data.success && data.content) {
-        setEditContent(data.content);
+        setScrapedContent(data.content);
+        
+        // APENAS substituir o editContent se NÃO houver um resumo de IA estruturado para preservar
+        if (!hasAiSummary) {
+          setEditContent(data.content);
+        }
+        
         // Se a imagem original não estiver salva ou for inválida, mas o scraper extrair uma válida
         if (!editCoverImage && data.imageUrl) {
           setEditCoverImage(data.imageUrl);
         }
       } else {
-        setEditContent(cand.original_excerpt || '');
+        const fallback = cand.original_excerpt || 'Conteúdo original não disponível.';
+        setScrapedContent(fallback);
+        if (!hasAiSummary) {
+          setEditContent(fallback);
+        }
       }
     } catch (err) {
       console.warn('Não foi possível obter detalhes do conteúdo original via proxy:', err);
-      setEditContent(cand.original_excerpt || '');
+      const fallback = cand.original_excerpt || 'Não foi possível carregar o conteúdo original.';
+      setScrapedContent(fallback);
+      if (!hasAiSummary) {
+        setEditContent(fallback);
+      }
     } finally {
       setActionId(null);
       setLoadingFullContent(false);
@@ -596,7 +623,7 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
               <AlertTriangle size={32} />
             </div>
             <div>
-              <h2 className="text-lg font-black tracking-tight uppercase text-zinc-900">Tabela de Candidatos Ausente</h2>
+              <h2 className="text-lg font-black tracking-tight uppercase text-zinc-900">Tabela de Notícias Coletadas Ausente</h2>
               <p className="text-zinc-600 text-sm mt-2 leading-relaxed">
                 A tabela <code className="bg-white/80 px-1.5 py-0.5 rounded border border-amber-200 font-mono text-xs">news_candidates</code> não foi encontrada no seu banco de dados Supabase. Esta tabela é essencial para hospedar a Fila Editorial do Garimpo de Notícias por IA.
               </p>
@@ -667,7 +694,7 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
 
               <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
                 <button
-                  onClick={loadCandidates}
+                  onClick={() => loadCandidates()}
                   className="bg-zinc-900 text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all w-full sm:w-auto"
                 >
                   <RefreshCw size={16} />
@@ -692,7 +719,7 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
           <span className="bg-red-600/30 text-red-400 border border-red-600/40 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Módulo Exclusivo</span>
           <h2 className="text-2xl md:text-3xl font-black tracking-tight uppercase leading-tight mt-3">Garimpo de Notícias por IA</h2>
           <p className="text-zinc-400 text-sm mt-2 leading-relaxed">
-            Monitoramento de fontes oficiais da Prefeitura de Presidente Prudente em tempo real. As notícias coletadas entram para esta Fila Editorial, aguardando a sua revisão e aprovação antes de serem publicadas no portal Melhora Prudente.
+            Monitoramento de fontes locais e oficiais em tempo real. As notícias recentes coletadas entram na fila editorial para revisão humana antes da publicação.
           </p>
           
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -704,7 +731,7 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
               {isScanning ? (
                 <>
                   <RefreshCw className="animate-spin" size={16} />
-                  Garimpando & Analisando com IA...
+                  Buscando e analisando novas notícias...
                 </>
               ) : (
                 <>
@@ -813,6 +840,54 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
             </div>
           </div>
 
+          {scanResult?.sourcesBreakdown && (
+            <div className="border-t border-zinc-800/80 pt-4 mt-4 space-y-3">
+              <h5 className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Breakdown por Provedor</h5>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {scanResult.sourcesBreakdown.map((src: any) => (
+                  <div key={src.id} className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white uppercase tracking-tight">{src.name}</span>
+                      <span className={cn(
+                        "text-[9px] px-2 py-0.5 rounded-full font-bold uppercase",
+                        src.status === 'Operacional' ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                      )}>
+                        {src.status}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1 text-[11px] font-mono text-center">
+                      <div className="bg-zinc-900/40 p-1.5 rounded-lg">
+                        <span className="text-[8px] text-zinc-500 block uppercase font-bold leading-tight">Enc</span>
+                        <span className="text-zinc-100 font-bold block mt-0.5">{src.scraped}</span>
+                      </div>
+                      <div className="bg-zinc-900/40 p-1.5 rounded-lg">
+                        <span className="text-[8px] text-zinc-500 block uppercase font-bold leading-tight">Rec</span>
+                        <span className="text-amber-400 font-bold block mt-0.5">{src.newCandidates}</span>
+                      </div>
+                      <div className="bg-zinc-900/40 p-1.5 rounded-lg">
+                        <span className="text-[8px] text-zinc-500 block uppercase font-bold leading-tight">Salv</span>
+                        <span className="text-emerald-400 font-bold block mt-0.5">{src.saved}</span>
+                      </div>
+                      <div className="bg-zinc-900/40 p-1.5 rounded-lg">
+                        <span className="text-[8px] text-zinc-500 block uppercase font-bold leading-tight">Dup</span>
+                        <span className="text-zinc-400 block mt-0.5">{src.duplicates}</span>
+                      </div>
+                      <div className="bg-zinc-900/40 p-1.5 rounded-lg">
+                        <span className="text-[8px] text-zinc-500 block uppercase font-bold leading-tight">Ant</span>
+                        <span className="text-blue-400 block mt-0.5">{src.old}</span>
+                      </div>
+                    </div>
+                    {src.error && (
+                      <div className="text-[10px] text-red-400 border-t border-zinc-900/60 pt-2 font-mono break-all leading-relaxed">
+                        {src.error}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {scanDetails.errorsCount > 0 && (
             <div className="bg-red-950/40 border border-red-900/40 rounded-2xl p-4 space-y-2">
               <h5 className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -899,6 +974,15 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
               )}
             >
               G1 Prudente
+            </button>
+            <button
+              onClick={() => setSourceFilter('inova-prudente')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap",
+                sourceFilter === 'inova-prudente' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
+              )}
+            >
+              Inova Prudente
             </button>
           </div>
 
@@ -1010,7 +1094,7 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                 <button
                   type="button"
                   disabled={loadingFullContent}
-                  onClick={() => loadFullContentForEdit(editingCandidate)}
+                  onClick={() => loadFullContentForEdit(editingCandidate, typeof editingCandidate?.ai_summary === 'string' && editingCandidate.ai_summary.trim().length > 0)}
                   className="text-xs font-bold text-red-600 hover:text-red-800 disabled:text-zinc-400 transition-colors flex items-center gap-1"
                 >
                   <RefreshCw size={12} className={cn(loadingFullContent && "animate-spin")} />
@@ -1028,6 +1112,26 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                   loadingFullContent && "opacity-60 bg-zinc-50"
                 )}
               />
+              {scrapedContent && (
+                <div className="mt-3 bg-zinc-50 p-4 rounded-xl border border-zinc-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">
+                      Texto Original Raspado da Fonte (Referência de Comparação)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditContent(scrapedContent)}
+                      className="text-[10px] font-black text-red-600 hover:text-red-800 transition-colors uppercase tracking-wider"
+                      title="Substituir o conteúdo editado pelo texto original da fonte"
+                    >
+                      Copiar original para o editor
+                    </button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto text-xs text-zinc-600 font-medium leading-relaxed whitespace-pre-wrap select-all font-sans">
+                    {scrapedContent}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-zinc-100 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -1079,10 +1183,25 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
       )}
 
       {/* Main candidate list rendering */}
-      {loading ? (
+      {loading && candidates.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <RefreshCw className="animate-spin text-red-600" size={32} />
-          <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Carregando candidatos...</p>
+          <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Carregando notícias...</p>
+        </div>
+      ) : diagnostic && candidates.length === 0 ? (
+        <div className="border border-red-200 bg-red-50/50 rounded-3xl py-12 px-4 text-center flex flex-col items-center justify-center max-w-lg mx-auto">
+          <AlertTriangle className="text-red-600 mb-3" size={40} />
+          <h3 className="text-sm font-black tracking-tight text-red-950 uppercase">Erro ao carregar notícias</h3>
+          <p className="text-red-800 text-xs mt-2 leading-relaxed max-w-md">
+            Não foi possível carregar as notícias do servidor ou do banco de dados no momento.
+          </p>
+          <button
+            onClick={() => loadCandidates()}
+            className="mt-4 bg-red-600 text-white px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 hover:bg-red-700 transition-all shadow-sm"
+          >
+            <RefreshCw size={12} />
+            Tentar novamente
+          </button>
         </div>
       ) : filteredCandidates.length === 0 ? (
         <div className="border border-dashed border-zinc-200 rounded-3xl py-20 px-4 text-center flex flex-col items-center justify-center max-w-lg mx-auto">
@@ -1122,7 +1241,9 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                       <span className={cn(
                         "px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border",
                         (cand.source_id === 'g1-presidente-prudente' || cand.source_name.toLowerCase().includes('g1'))
-                          ? "bg-red-50 text-red-600 border-red-100"
+                          ? "bg-rose-50 text-rose-600 border-rose-100"
+                          : cand.source_id === 'inova-prudente'
+                          ? "bg-amber-50 text-amber-600 border-amber-100"
                           : "bg-blue-50 text-blue-600 border-blue-100"
                       )}>
                         <Globe size={10} />
@@ -1321,7 +1442,7 @@ CREATE POLICY "Admins and editors can delete news_candidates" ON public.news_can
                         </div>
                         <div>
                           <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block mb-1">Resumo do Garimpo</span>
-                          <p className="text-zinc-700 text-xs leading-relaxed">{cand.ai_summary || cand.original_excerpt || 'Sem resumo disponível'}</p>
+                          <p className="text-zinc-700 text-xs leading-relaxed whitespace-pre-wrap">{cand.ai_summary || cand.original_excerpt || 'Sem resumo disponível'}</p>
                         </div>
                       </div>
                       

@@ -86,3 +86,67 @@ export function sanitizeHtml(html: string): string {
 
   return sanitized;
 }
+
+/**
+ * Gera um resumo seguro (excerpt) que respeita as fronteiras de palavras e sentenças,
+ * evitando truncar no meio de palavras ou terminar em conjunções/preposições (ex: 'de...', 'e...').
+ */
+export function generateSafeExcerpt(text: string, maxLength = 180): string {
+  if (!text) return '';
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxLength) return clean;
+  
+  // Corta o texto na largura máxima desejada
+  let truncated = clean.substring(0, maxLength);
+  
+  // Tenta encontrar o final da última sentença completa (ponto final, interrogação, exclamação)
+  const lastSentenceEnd = Math.max(
+    truncated.lastIndexOf('. '),
+    truncated.lastIndexOf('? '),
+    truncated.lastIndexOf('! ')
+  );
+  
+  if (lastSentenceEnd > 40) {
+    return truncated.substring(0, lastSentenceEnd + 1);
+  }
+  
+  // Caso contrário, corta no último espaço de palavra
+  const lastSpace = truncated.lastIndexOf(' ');
+  if (lastSpace > 40) {
+    truncated = truncated.substring(0, lastSpace);
+  }
+  
+  // Limpa pontuações órfãs ou preposições/conjunções fracas no final do texto
+  truncated = truncated.replace(/[,;:\-\s\+]+$/, '');
+  truncated = truncated.replace(/\s+(e|ou|de|da|do|em|com|para|um|uma|o|a|os|as|no|na|nos|nas|por|com|sob|sob|sobre|atras|atrás|como)$/i, '');
+  
+  return truncated + '...';
+}
+
+/**
+ * Converte blocos de texto divididos por quebras de linha duplas (\n\n) em tags HTML <p>,
+ * preservando as tags de bloco HTML existentes para renderização perfeita no Tailwind Prose.
+ */
+export function formatContentToHtml(content: string): string {
+  if (!content) return '';
+  
+  // Divide o conteúdo pelas quebras de parágrafo dupla
+  const parts = content.split(/\n\s*\n+/);
+  
+  const formattedParts = parts.map(part => {
+    const trimmed = part.trim();
+    if (!trimmed) return '';
+    
+    // Se a parte já inicia com uma tag de bloco conhecida (HTML), preserva intacta
+    if (/^<(p|div|blockquote|section|h[1-6]|ul|ol|li)\b/i.test(trimmed)) {
+      return trimmed;
+    }
+    
+    // Caso contrário, envolve em tag <p> e converte quebras simples em <br />
+    const withBrs = trimmed.replace(/\n/g, '<br />');
+    return `<p>${withBrs}</p>`;
+  });
+  
+  return formattedParts.filter(Boolean).join('\n');
+}
+

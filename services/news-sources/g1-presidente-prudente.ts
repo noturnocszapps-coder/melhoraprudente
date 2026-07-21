@@ -6,7 +6,7 @@ export class G1PresidentePrudenteSource implements NewsSource {
   public url = 'https://g1.globo.com/sp/presidente-prudente-regiao/';
   public sourceType: 'official' | 'journalistic' = 'journalistic';
 
-  private rssUrl = 'https://g1.globo.com/dynamo/sp/presidente-prudente-regiao/rss2.xml';
+  private rssUrl = 'https://g1.globo.com/dynamo/sp/presidente-prudente-e-regiao/rss2.xml';
 
   public async fetchLatestItems(limit = 10): Promise<ScrapedNewsItem[]> {
     try {
@@ -102,10 +102,15 @@ export class G1PresidentePrudenteSource implements NewsSource {
         }
 
         // 5. Extrair Imagem
-        const mediaMatch = itemXml.match(/<media:content[^>]+url=["']([^"']+)["']/i);
         let imageUrl: string | undefined = undefined;
+        const mediaMatch = itemXml.match(/<media:content[^>]+url=["']([^"']+)["']/i);
         if (mediaMatch) {
           imageUrl = mediaMatch[1].trim();
+        } else {
+          const imgMatch = itemXml.match(/<img[^>]+src=["']([^"']+)["']/i);
+          if (imgMatch) {
+            imageUrl = imgMatch[1].trim();
+          }
         }
 
         // 6. Extrair Excerpt/Description (e limpar HTML)
