@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'melhora-prudente-web',
       script: 'node_modules/next/dist/bin/next',
-      args: 'start -p 3000',
+      args: 'start -p 3005',
       exec_mode: 'cluster',
       instances: 'max',
       autorestart: true,
@@ -11,11 +11,11 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
-        PORT: 3000,
+        PORT: 3005,
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 3000,
+        PORT: 3005,
       },
       out_file: './logs/web-out.log',
       error_file: './logs/web-err.log',

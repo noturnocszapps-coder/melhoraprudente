@@ -36,9 +36,9 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # Proxy para Aplicação Next.js (Porta 3000)
+    # Proxy para Aplicação Next.js (Porta 3005)
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3005;
         proxy_http_version 1.1;
         
         # WebSockets e Conexões Persistentes
@@ -58,7 +58,7 @@ server {
 
     # Cache para arquivos estáticos do Next.js
     location /_next/static/ {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3005;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         
@@ -68,7 +68,7 @@ server {
 
     # Arquivos estáticos da pasta public
     location /public/ {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3005;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         
