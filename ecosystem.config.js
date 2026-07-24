@@ -1,0 +1,45 @@
+module.exports = {
+  apps: [
+    {
+      name: 'melhora-prudente-web',
+      script: 'node_modules/next/dist/bin/next',
+      args: 'start -p 3000',
+      exec_mode: 'cluster',
+      instances: 'max',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '1G',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3000,
+      },
+      env_production: {
+        NODE_ENV: 'production',
+        PORT: 3000,
+      },
+      out_file: './logs/web-out.log',
+      error_file: './logs/web-err.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    },
+    {
+      name: 'melhora-prudente-worker',
+      script: 'node_modules/tsx/dist/cli.mjs',
+      args: 'workers/garimpo-worker.ts --loop',
+      exec_mode: 'fork',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      env: {
+        NODE_ENV: 'production',
+        WORKER_INTERVAL_MINUTES: 15,
+        WORKER_BATCH_SIZE: 3,
+        WORKER_TIMEOUT_MS: 60000,
+      },
+      out_file: './logs/worker-out.log',
+      error_file: './logs/worker-err.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      kill_timeout: 5000,
+    },
+  ],
+};
